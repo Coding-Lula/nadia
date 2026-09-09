@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestão Financeira</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <?!= include('CSS'); ?>
+</head>
+<body>
+
+  <?!= include('Nav'); ?>
+
+  <div class="container">
+
+    <!-- VIEW 1: PAINEL GERAL (HOME) -->
+    <div id="view-home" class="view active">
+      <div class="card">
+        <div class="balance-label">Saldo Total das Contas</div>
+        <div class="balance-val" id="dash-total-balance">0,00 MT</div>
+        <div class="stats-grid">
+          <div class="stat-box income">
+            <div class="balance-label">Receitas (Mês Atual)</div>
+            <div class="val" id="dash-total-income">0,00 MT</div>
+          </div>
+          <div class="stat-box expense">
+            <div class="balance-label">Despesas (Mês Atual)</div>
+            <div class="val" id="dash-total-expense">0,00 MT</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Resumo de Despesas</h3>
+        <canvas id="categoryChart" style="max-height: 220px; margin-top: 12px;"></canvas>
+      </div>
+    </div>
+
+    <!-- VIEW 2: TODAS AS TRANSAÇÕES (GLOBAL CRUD) -->
+    <div id="view-transactions" class="view">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h3>Histórico de Transações</h3>
+          <button class="btn-sm" onclick="switchTab('add-tx', 'Registar Transação')">+ Nova</button>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Data / Despesa</th>
+                <th>Conta</th>
+                <th>Valor</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="global-tx-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 3: EXTRATO BANCÁRIO -->
+    <div id="view-statement" class="view">
+        <div class="card">
+        <h3>Gerar Extrato de Conta</h3>
+        <form id="form-statement" onsubmit="fetchStatement(event)">
+          <div class="form-group">
+            <label>Conta</label>
+            <select id="stmt-account" class="form-control" required></select>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div class="form-group">
+              <label>Data de Início</label>
+              <input type="date" id="stmt-start" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label>Data de Fim</label>
+              <input type="date" id="stmt-end" class="form-control" required>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div class="form-group">
+              <label>Tipo</label>
+              <select id="stmt-type" class="form-control">
+                <option value="ALL">Todos</option>
+                <option value="Income">Receitas (Inflows)</option>
+                <option value="Expense">Despesas (Outflows)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Categoria</label>
+              <select id="stmt-category" class="form-control">
+                <option value="ALL">Todas</option>
+                <!-- Dynamic options populated via populateCategoryDropdowns() -->
+              </select>
+            </div>
+          </div>
+
+          <button type="submit" class="btn">Gerar Extrato</button>
+        </form>
+      </div>
+
+      <div id="statement-results" class="card" style="display: none;">
+        <h3>Pré-Visualização do Período</h3>
+        <div class="statement-summary">
+          <div class="stmt-card"><span>Saldo Anterior</span><strong id="stmt-op-bal">0,00 MT</strong></div>
+          <div class="stmt-card"><span>Receitas</span><strong id="stmt-inc" style="color: var(--success);">0,00 MT</strong></div>
+          <div class="stmt-card"><span>Despesas</span><strong id="stmt-exp" style="color: var(--danger);">0,00 MT</strong></div>
+          <div class="stmt-card"><span>Saldo Final</span><strong id="stmt-cl-bal">0,00 MT</strong></div>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Despesa / Descr.</th>
+                <th>Valor</th>
+              </tr>
+            </thead>
+            <tbody id="stmt-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 4: CONTAS E DÍVIDAS -->
+    <div id="view-accounts" class="view">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h3>Contas</h3>
+          <button class="btn-sm" onclick="openModal('modal-add-acc')">+ Nova Conta</button>
+        </div>
+        <div id="accounts-list" style="margin-top: 12px;"></div>
+      </div>
+
+      <!-- CARD 1: CATEGORIAS DE DESPESAS -->
+          <div class="card despesas">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <h3>Categorias de Despesas</h3>
+              <button class="btn-sm" onclick="openModal('modal-add-cat')">+ Nova Despesa</button>
+            </div>
+            <div id="expense-categories-list" style="margin-top: 12px;"></div>
+          </div>
+
+          <!-- CARD 2: CATEGORIAS DE RECEITAS -->
+          <div class="card receitas">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <h3>Categorias de Receitas</h3>
+              <button class="btn-sm" onclick="openModal('modal-add-cat')">+ Nova Receita</button>
+            </div>
+            <div id="income-categories-list" style="margin-top: 12px;"></div>
+          </div>
+
+
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h3>Dívidas & Empréstimos</h3>
+          <button class="btn-sm" onclick="openModal('modal-add-debt')">+ Registar Dívida</button>
+        </div>
+        <div id="debts-list" style="margin-top: 12px;"></div>
+      </div>
+    </div>
+
+    <!-- VIEW 5: REGISTAR TRANSAÇÃO -->
+    <div id="view-add-tx" class="view">
+      <div class="card">
+        <h3>Nova Transação</h3>
+        <form id="form-tx" onsubmit="submitTransaction(event)">
+          <div class="form-group">
+            <label>Tipo de Transação</label>
+            <div class="type-selector">
+              <button type="button" id="btn-type-expense" class="type-btn active-expense" onclick="selectTxType('Expense')">Despesa</button>
+              <button type="button" id="btn-type-income" class="type-btn" onclick="selectTxType('Income')">Receita</button>
+              <button type="button" id="btn-type-transfer" class="type-btn" onclick="selectTxType('Transfer')">Transferência</button>
+            </div>
+            <input type="hidden" id="tx-type" value="Expense">
+          </div>
+
+          <div class="form-group">
+            <label>Conta Origem</label>
+            <select id="tx-account" class="form-control" required></select>
+          </div>
+
+          <div class="form-group">
+            <label>Data</label>
+            <input type="date" id="tx-date" class="form-control" required>
+          </div>
+
+          <div class="form-group" id="target-acc-group" style="display: none;">
+            <label>Conta Destino</label>
+            <select id="tx-target-account" class="form-control"></select>
+          </div>
+
+          <div class="form-group" id="cat-group">
+            <label>Categoria</label>
+            <select id="tx-category" class="form-control"></select>
+          </div>
+
+          <div class="form-group">
+            <label>Valor (MT)</label>
+            <input type="number" step="0.01" id="tx-amount" class="form-control" placeholder="0.00" required>
+          </div>
+
+          <div class="form-group">
+            <label>Descrição</label>
+            <input type="text" id="tx-desc" class="form-control" placeholder="Ex: Pagamento de serviços">
+          </div>
+
+          <div class="form-group">
+            <label>Comprovativo (Foto)</label>
+            <input type="file" id="tx-receipt" accept="image/*" capture="environment" class="form-control">
+          </div>
+
+          <button type="submit" class="btn">Guardar Transação</button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MODALS PARA CRUD -->
+  <div id="modal-view-tx" class="modal">
+  <div class="modal-content">
+    <h3>Detalhes da Transação</h3>
+    <div id="view-tx-body" style="margin: 16px 0;">
+      </div>
+    <div style="display: flex; justify-content: flex-end; gap: 8px;">
+      <button type="button" class="btn btn-secondary" onclick="closeModal('modal-view-tx')">Fechar</button>
+    </div>
+  </div>
+</div>
+  <!-- Modal Editar Transação -->
+  <div id="modal-edit-tx" class="modal">
+    <div class="modal-content">
+      <h3>Editar Transação</h3>
+      <form onsubmit="submitEditTransaction(event)">
+        <input type="hidden" id="edit-tx-id">
+        <div class="form-group">
+          <label>Valor (MT)</label>
+          <input type="number" step="0.01" id="edit-tx-amount" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label>Despesa / Categoria</label>
+          <select id="edit-tx-category" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label>Descrição</label>
+          <input type="text" id="edit-tx-desc" class="form-control">
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button type="submit" class="btn">Atualizar</button>
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit-tx')">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Adicionar Conta -->
+  <div id="modal-add-acc" class="modal">
+    <div class="modal-content">
+      <h3>Adicionar Nova Conta</h3>
+      <form onsubmit="submitAddAccount(event)">
+        <div class="form-group">
+          <label>Nome da Conta</label>
+          <input type="text" id="new-acc-name" class="form-control" required placeholder="Ex: Banco Millennium">
+        </div>
+        <div class="form-group">
+          <label>Tipo</label>
+          <select id="new-acc-type" class="form-control">
+            <option value="Bank">Conta Bancária</option>
+            <option value="Card">Cartão de Crédito</option>
+            <option value="Cash">Carteira / Dinheiro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Saldo Inicial (MT)</label>
+          <input type="number" step="0.01" id="new-acc-init" class="form-control" value="0.00" required>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button type="submit" class="btn">Guardar</button>
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-acc')">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Adicionar Despesa (Categoria) -->
+  <div id="modal-add-cat" class="modal">
+    <div class="modal-content">
+      <h3>Adicionar Tipo de Despesa</h3>
+      <form onsubmit="submitAddCategory(event)">
+        <div class="form-group">
+          <label>Nome da Despesa</label>
+          <input type="text" id="new-cat-name" class="form-control" required placeholder="Ex: Combustível">
+        </div>
+        <div class="form-group">
+          <label>Tipo</label>
+          <select id="new-cat-type" class="form-control">
+            <option value="Expense">Despesa</option>
+            <option value="Income">Receita</option>
+          </select>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button type="submit" class="btn">Guardar</button>
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-cat')">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Adicionar Dívida -->
+  <div id="modal-add-debt" class="modal">
+    <div class="modal-content">
+      <h3>Registar Dívida / Empréstimo</h3>
+      <form onsubmit="submitAddDebt(event)">
+        <div class="form-group">
+          <label>Nome da Pessoa</label>
+          <input type="text" id="new-debt-person" class="form-control" required placeholder="Ex: Carlos">
+        </div>
+        <div class="form-group">
+          <label>Tipo</label>
+          <select id="new-debt-type" class="form-control">
+            <option value="Lend">Emprestado (Quem me deve)</option>
+            <option value="Borrow">Dívida (A quem devo)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Valor Total (MT)</label>
+          <input type="number" step="0.01" id="new-debt-amount" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label>Data de Vencimento</label>
+          <input type="date" id="new-debt-date" class="form-control">
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button type="submit" class="btn">Guardar</button>
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-debt')">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- FAB Button -->
+  <button class="fab" onclick="switchTab('add-tx', 'Registar Transação')">+</button>
+
+  <?!= include('Scripts'); ?>
+</body>
+</html>

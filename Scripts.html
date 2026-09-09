@@ -1,0 +1,451 @@
+<script>
+  let globalAccounts = [];
+  let globalCategories = [];
+  let globalTransactions = [];
+  let chartInstance = null;
+  window.onload = function() {
+    loadInitialData();
+  };
+
+  function switchTab(tabId, title) {
+    // Hide all views
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    // Un-highlight all nav tabs
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    document.getElementById('tx-date').value = new Date().toISOString().split('T')[0];
+    // Activate target view
+    const targetView = document.getElementById(`view-${tabId}`);
+    if (targetView) targetView.classList.add('active');
+
+    // Highlight target nav tab
+    const targetNav = document.getElementById(`nav-${tabId}`);
+    if (targetNav) targetNav.classList.add('active');
+
+    document.getElementById('page-title').innerText = title;
+
+    if (tabId === 'transactions') {
+      loadGlobalTransactions();
+    }
+  }
+
+  function openModal(id) { document.getElementById(id).classList.add('active'); }
+  function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+  function selectTxType(type) {
+    document.getElementById('tx-type').value = type;
+    const btnExp = document.getElementById('btn-type-expense');
+    const btnInc = document.getElementById('btn-type-income');
+    const btnTrf = document.getElementById('btn-type-transfer');
+
+    btnExp.className = 'type-btn';
+    btnInc.className = 'type-btn';
+    btnTrf.className = 'type-btn';
+
+    if (type === 'Expense') btnExp.classList.add('active-expense');
+    if (type === 'Income') btnInc.classList.add('active-income');
+    if (type === 'Transfer') btnTrf.classList.add('active-transfer');
+
+    document.getElementById('target-acc-group').style.display = (type === 'Transfer') ? 'block' : 'none';
+    document.getElementById('cat-group').style.display = (type === 'Transfer') ? 'none' : 'block';
+  }
+
+  function loadInitialData() {
+    // 1. Accounts
+    google.script.run.withSuccessHandler(data => {
+      globalAccounts = data.accounts;
+      document.getElementById('dash-total-balance').innerText = `${data.totalBalance.toFixed(2)} MT`;
+      populateAccountDropdowns();
+      renderAccountsList(data.accounts);
+    }).getAccountsOverview();
+
+    // 2. Current Month Totals
+    google.script.run.withSuccessHandler(summary => {
+      document.getElementById('dash-total-income').innerText = `${summary.monthlyIncome.toFixed(2)} MT`;
+      document.getElementById('dash-total-expense').innerText = `${summary.monthlyExpense.toFixed(2)} MT`;
+    }).getCurrentMonthSummary();
+
+    // 3. Despesas (Categories)
+    google.script.run.withSuccessHandler(cats => {
+      globalCategories = cats;
+      populateCategoryDropdowns();
+      renderCategoriesList(cats);
+    }).getCategories();
+
+    // 4. Debts
+    google.script.run.withSuccessHandler(debts => {
+      renderDebtsList(debts);
+    }).getDebts();
+
+    // 5. Summary Category
+    google.script.run.withSuccessHandler(chartData => {
+    renderCategoryChart(chartData);
+  }).getCategoryExpenseBreakdown();
+  }
+
+  function loadGlobalTransactions() {
+    google.script.run.withSuccessHandler(transactions => {
+      globalTransactions = transactions;
+      renderGlobalTransactions(transactions);
+    }).getRecentTransactions();
+  }
+
+function renderGlobalTransactions(transactions) {
+  const tbody = document.getElementById('global-tx-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  if (!transactions || transactions.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--text-muted);">Nenhuma transação encontrada.</td></tr>';
+    return;
+  }
+
+  transactions.forEach(tx => {
+    const tr = document.createElement('tr');
+    const isCredit = tx.amount > 0;
+    
+    tr.innerHTML = `
+      <td>
+        <strong>${tx.category || 'Transferência'}</strong><br>
+        <small style="color: var(--text-muted);">${tx.date}</small>
+      </td>
+      <td>
+        <div style="font-weight: 500;">${tx.description || '-'}</div>
+        <small style="color: var(--text-muted);">💳 ${tx.accountName || '-'}</small>
+      </td>
+      <td class="${isCredit ? 'amt-credit' : 'amt-debit'}">${tx.amount.toFixed(2)} MT</td>
+      <td>
+        <button class="btn-sm" style="padding: 2px 6px; margin-right: 4px;" onclick="openViewTxModal('${tx.id}')">👁️</button>
+        <button class="btn-sm" style="padding: 2px 6px; margin-right: 4px;" onclick="openEditTxModal('${tx.id}')">✏️</button>
+        <button class="btn-danger-sm" onclick="deleteTransaction('${tx.id}')">🗑️</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+  function populateAccountDropdowns() {
+  // Populate normal transaction dropdowns (must be a specific account)
+  const txSelects = [document.getElementById('tx-account'), document.getElementById('tx-target-account')];
+  txSelects.forEach(select => {
+    if (!select) return;
+    select.innerHTML = '';
+    globalAccounts.forEach(acc => {
+      const opt = document.createElement('option');
+      opt.value = acc.id;
+      opt.innerText = `${acc.name} (${acc.balance.toFixed(2)} MT)`;
+      select.appendChild(opt);
+    });
+  });
+
+  // Populate Extrato Account Filter with "ALL" option
+  const stmtAccSelect = document.getElementById('stmt-account');
+  if (stmtAccSelect) {
+    stmtAccSelect.innerHTML = '<option value="ALL">Todas as Contas</option>';
+    globalAccounts.forEach(acc => {
+      const opt = document.createElement('option');
+      opt.value = acc.id;
+      opt.innerText = `${acc.name} (${acc.balance.toFixed(2)} MT)`;
+      stmtAccSelect.appendChild(opt);
+    });
+  }
+}
+
+ function populateCategoryDropdowns() {
+  const selects = [document.getElementById('tx-category'), document.getElementById('edit-tx-category')];
+  
+  // Populate normal transaction forms
+  selects.forEach(select => {
+    if (!select) return;
+    select.innerHTML = '';
+    globalCategories.forEach(cat => {
+      const opt = document.createElement('option');
+      opt.value = cat.name;
+      opt.innerText = cat.name;
+      select.appendChild(opt);
+    });
+  });
+
+  // Populate Extrato Category Filter with "ALL" option
+  const stmtCatSelect = document.getElementById('stmt-category');
+  if (stmtCatSelect) {
+    stmtCatSelect.innerHTML = '<option value="ALL">Todas as Categorias</option>';
+    globalCategories.forEach(cat => {
+      const opt = document.createElement('option');
+      opt.value = cat.name;
+      opt.innerText = cat.name;
+      stmtCatSelect.appendChild(opt);
+    });
+  }
+}
+
+  function submitTransaction(e) {
+    e.preventDefault();
+    const payload = {
+      type: document.getElementById('tx-type').value,
+      accountId: document.getElementById('tx-account').value,
+      targetAccountId: document.getElementById('tx-target-account').value,
+      category: document.getElementById('tx-category').value,
+      amount: document.getElementById('tx-amount').value,
+      description: document.getElementById('tx-desc').value
+    };
+
+    google.script.run.withSuccessHandler(() => {
+      alert('Transação guardada com sucesso!');
+      document.getElementById('form-tx').reset();
+      switchTab('transactions', 'Todas as Transações');
+      loadInitialData();
+    }).addTransaction(payload);
+  }
+
+  function openEditTxModal(txId) {
+    const tx = globalTransactions.find(t => t.id === txId);
+    if (!tx) return;
+
+    document.getElementById('edit-tx-id').value = tx.id;
+    document.getElementById('edit-tx-amount').value = Math.abs(tx.amount);
+    document.getElementById('edit-tx-category').value = tx.category;
+    document.getElementById('edit-tx-desc').value = tx.description || '';
+
+    openModal('modal-edit-tx');
+  }
+
+  function submitEditTransaction(e) {
+    e.preventDefault();
+    const payload = {
+      id: document.getElementById('edit-tx-id').value,
+      amount: document.getElementById('edit-tx-amount').value,
+      category: document.getElementById('edit-tx-category').value,
+      description: document.getElementById('edit-tx-desc').value
+    };
+
+    google.script.run.withSuccessHandler(() => {
+      closeModal('modal-edit-tx');
+      loadGlobalTransactions();
+      loadInitialData();
+    }).updateTransaction(payload);
+  }
+
+  function deleteTransaction(txId) {
+    if (confirm('Tem a certeza que deseja eliminar esta transação?')) {
+      google.script.run.withSuccessHandler(() => {
+        loadGlobalTransactions();
+        loadInitialData();
+      }).deleteTransaction(txId);
+    }
+  }
+
+  function fetchStatement(e) {
+  e.preventDefault();
+  const accId = document.getElementById('stmt-account').value;
+  const start = document.getElementById('stmt-start').value;
+  const end = document.getElementById('stmt-end').value;
+  const type = document.getElementById('stmt-type').value;
+  const category = document.getElementById('stmt-category').value;
+
+  google.script.run.withSuccessHandler(data => {
+    document.getElementById('stmt-op-bal').innerText = `${data.openingBalance.toFixed(2)} MT`;
+    document.getElementById('stmt-inc').innerText = `${data.totalIncome.toFixed(2)} MT`;
+    document.getElementById('stmt-exp').innerText = `${data.totalExpense.toFixed(2)} MT`;
+    document.getElementById('stmt-cl-bal').innerText = `${data.closingBalance.toFixed(2)} MT`;
+
+    const tbody = document.getElementById('stmt-table-body');
+    tbody.innerHTML = '';
+
+    data.transactions.forEach(tx => {
+      const tr = document.createElement('tr');
+      const isCredit = tx.amount > 0;
+      tr.innerHTML = `
+        <td>${tx.date}</td>
+        <td>
+          <strong>${tx.category}</strong>
+          <br><small style="color: var(--text-muted);">${tx.description || '-'}</small>
+          <br><span class="badge-account">${tx.accountName}</span>
+        </td>
+        <td class="${isCredit ? 'amt-credit' : 'amt-debit'}">${tx.amount.toFixed(2)} MT</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById('statement-results').style.display = 'block';
+  }).getStatementData(accId, start, end, type, category);
+}
+
+  /* OTHER CRUD HANDLERS */
+  function submitAddAccount(e) {
+    e.preventDefault();
+    const name = document.getElementById('new-acc-name').value;
+    const type = document.getElementById('new-acc-type').value;
+    const init = document.getElementById('new-acc-init').value;
+
+    google.script.run.withSuccessHandler(() => {
+      closeModal('modal-add-acc');
+      loadInitialData();
+    }).addAccount(name, type, init);
+  }
+
+  function submitAddCategory(e) {
+    e.preventDefault();
+    const name = document.getElementById('new-cat-name').value;
+    const type = document.getElementById('new-cat-type').value;
+
+    google.script.run.withSuccessHandler(() => {
+      closeModal('modal-add-cat');
+      loadInitialData();
+    }).addCategory(name, type);
+  }
+
+  function submitAddDebt(e) {
+    e.preventDefault();
+    const person = document.getElementById('new-debt-person').value;
+    const type = document.getElementById('new-debt-type').value;
+    const amount = document.getElementById('new-debt-amount').value;
+    const date = document.getElementById('new-debt-date').value;
+
+    google.script.run.withSuccessHandler(() => {
+      closeModal('modal-add-debt');
+      loadInitialData();
+    }).addDebt(person, type, amount, date);
+  }
+
+  function deleteCategory(id) {
+    if(confirm('Tem a certeza que deseja eliminar esta despesa?')) {
+      google.script.run.withSuccessHandler(() => loadInitialData()).deleteCategory(id);
+    }
+  }
+
+  function renderAccountsList(accounts) {
+    const container = document.getElementById('accounts-list');
+    container.innerHTML = '';
+    accounts.forEach(acc => {
+      container.innerHTML += `
+        <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border);">
+          <div><strong>${acc.name}</strong><br><small style="color: var(--text-muted);">${acc.type}</small></div>
+          <div style="font-weight: 700;">${acc.balance.toFixed(2)} MT</div>
+        </div>
+      `;
+    });
+  }
+
+    function renderCategoriesList(categories) {
+      const expenseContainer = document.getElementById('expense-categories-list');
+      const incomeContainer = document.getElementById('income-categories-list');
+      
+      if (expenseContainer) expenseContainer.innerHTML = '';
+      if (incomeContainer) incomeContainer.innerHTML = '';
+
+      categories.forEach(cat => {
+        const html = `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border);">
+            <span><strong>${cat.name}</strong></span>
+            <button class="btn-danger-sm" onclick="deleteCategory('${cat.id}')">Eliminar</button>
+          </div>
+        `;
+
+        if (cat.type === 'Income' && incomeContainer) {
+          incomeContainer.innerHTML += html;
+        } else if (cat.type === 'Expense' && expenseContainer) {
+          expenseContainer.innerHTML += html;
+        }
+      });
+    }
+
+  function renderDebtsList(debts) {
+    const container = document.getElementById('debts-list');
+    container.innerHTML = '';
+    if(debts.length === 0) {
+      container.innerHTML = '<small style="color: var(--text-muted);">Nenhuma dívida registada.</small>';
+      return;
+    }
+    debts.forEach(d => {
+      const remaining = d.totalAmount - d.paidAmount;
+      container.innerHTML += `
+        <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border);">
+          <div><strong>${d.person}</strong> (${d.type === 'Lend' ? 'Emprestado' : 'Dívida'})<br><small>Vencimento: ${d.dueDate}</small></div>
+          <div style="font-weight: 700; color: ${d.type === 'Lend' ? 'var(--success)' : 'var(--danger)'};">${remaining.toFixed(2)} MT</div>
+        </div>
+      `;
+    });
+  }
+
+function renderCategoryChart(data) {
+  const canvas = document.getElementById('categoryChart');
+  if (!canvas) return; // Guard clause in case canvas doesn't exist yet
+
+  const ctx = canvas.getContext('2d');
+
+  if (chartInstance) {
+    chartInstance.destroy();
+  }
+
+  // Handle empty or missing dataset
+  if (!data || !data.labels || data.labels.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '14px sans-serif';
+    ctx.fillStyle = '#888888';
+    ctx.textAlign = 'center';
+    ctx.fillText('Sem despesas registadas este mês.', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  chartInstance = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: data.labels,
+      datasets: [{
+        data: data.values,
+        backgroundColor: [
+          '#f05252', '#3b82f6', '#10b981', '#f59e0b', 
+          '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'
+        ],
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { boxWidth: 12, font: { size: 11 } }
+        }
+      }
+    }
+  });
+}
+function openViewTxModal(txId) {
+  const tx = globalTransactions.find(t => t.id === txId);
+  if (!tx) return;
+
+  const container = document.getElementById('view-tx-body');
+  const isCredit = tx.amount > 0;
+
+  container.innerHTML = `
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <div>
+        <small style="color: var(--text-muted);">Data</small>
+        <div style="font-weight: 600;">${tx.date}</div>
+      </div>
+      <div>
+        <small style="color: var(--text-muted);">Tipo / Categoria</small>
+        <div style="font-weight: 600;">${tx.type || 'Transação'} — ${tx.category || 'Geral'}</div>
+      </div>
+      <div>
+        <small style="color: var(--text-muted);">Conta Utilizada</small>
+        <div style="font-weight: 600;">💳 ${tx.accountName || 'N/A'}</div>
+      </div>
+      <div>
+        <small style="color: var(--text-muted);">Valor</small>
+        <div style="font-weight: 700; font-size: 1.2rem;" class="${isCredit ? 'amt-credit' : 'amt-debit'}">
+          ${tx.amount.toFixed(2)} MT
+        </div>
+      </div>
+      <div>
+        <small style="color: var(--text-muted);">Descrição</small>
+        <div style="font-weight: 500;">${tx.description || 'Sem descrição'}</div>
+      </div>
+    </div>
+  `;
+
+  openModal('modal-view-tx');
+}
+</script>
