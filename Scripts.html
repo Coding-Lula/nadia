@@ -1,6 +1,7 @@
 <script>
   let globalAccounts = [];
   let globalCategories = [];
+  let globalDebts = [];
   let globalTransactions = [];
   let chartInstance = null;
   window.onload = function() {
@@ -46,7 +47,63 @@
     if (type === 'Transfer') btnTrf.classList.add('active-transfer');
 
     document.getElementById('target-acc-group').style.display = (type === 'Transfer') ? 'block' : 'none';
-    document.getElementById('cat-group').style.display = (type === 'Transfer') ? 'none' : 'block';
+
+    const debtToggleGroup = document.getElementById('debt-toggle-group');
+    if (debtToggleGroup) {
+      debtToggleGroup.style.display = (type === 'Transfer') ? 'none' : 'block';
+    }
+
+    if (type === 'Transfer') {
+      document.getElementById('cat-group').style.display = 'none';
+      document.getElementById('debt-group').style.display = 'none';
+      const debtCheckbox = document.getElementById('tx-is-debt');
+      if (debtCheckbox) debtCheckbox.checked = false;
+    } else {
+      toggleDebtMode();
+    }
+  }
+
+  function toggleDebtMode() {
+    const isDebt = document.getElementById('tx-is-debt').checked;
+    const type = document.getElementById('tx-type').value;
+
+    if (type === 'Transfer') return;
+
+    if (isDebt) {
+      document.getElementById('debt-group').style.display = 'block';
+      document.getElementById('cat-group').style.display = 'none';
+      populateDebtDropdown();
+    } else {
+      document.getElementById('debt-group').style.display = 'none';
+      document.getElementById('cat-group').style.display = 'block';
+    }
+  }
+
+  function populateDebtDropdown() {
+    const debtSelect = document.getElementById('tx-debt');
+    if (!debtSelect) return;
+    debtSelect.innerHTML = '';
+
+    const type = document.getElementById('tx-type').value;
+    const targetType = (type === 'Income') ? 'Lend' : 'Borrow';
+
+    const filteredDebts = globalDebts.filter(d => d.type === targetType && (d.totalAmount - d.paidAmount) > 0);
+
+    if (filteredDebts.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.innerText = 'Nenhuma dívida encontrada';
+      debtSelect.appendChild(opt);
+      return;
+    }
+
+    filteredDebts.forEach(d => {
+      const remaining = d.totalAmount - d.paidAmount;
+      const opt = document.createElement('option');
+      opt.value = d.id;
+      opt.innerText = `${d.person} (Restante: ${remaining.toFixed(2)} MT)`;
+      debtSelect.appendChild(opt);
+    });
   }
 
   function loadInitialData() {
@@ -73,13 +130,15 @@
 
     // 4. Debts
     google.script.run.withSuccessHandler(debts => {
+      globalDebts = debts;
       renderDebtsList(debts);
+      populateDebtDropdown();
     }).getDebts();
 
     // 5. Summary Category
     google.script.run.withSuccessHandler(chartData => {
-    renderCategoryChart(chartData);
-  }).getCategoryExpenseBreakdown();
+      renderCategoryChart(chartData);
+    }).getCategoryExpenseBreakdown();
   }
 
   function loadGlobalTransactions() {
@@ -180,18 +239,31 @@ function renderGlobalTransactions(transactions) {
 
   function submitTransaction(e) {
     e.preventDefault();
+    const isDebt = document.getElementById('tx-is-debt').checked;
+    const type = document.getElementById('tx-type').value;
+
     const payload = {
-      type: document.getElementById('tx-type').value,
+      type: type,
       accountId: document.getElementById('tx-account').value,
       targetAccountId: document.getElementById('tx-target-account').value,
-      category: document.getElementById('tx-category').value,
+      date: document.getElementById('tx-date').value,
+      isDebt: isDebt,
+      debtId: isDebt ? document.getElementById('tx-debt').value : null,
+      category: isDebt ? 'Amortizar Divida' : document.getElementById('tx-category').value,
       amount: document.getElementById('tx-amount').value,
       description: document.getElementById('tx-desc').value
     };
 
+    if (isDebt && !payload.debtId) {
+      alert('Por favor, selecione uma dívida válida.');
+      return;
+    }
+
     google.script.run.withSuccessHandler(() => {
       alert('Transação guardada com sucesso!');
       document.getElementById('form-tx').reset();
+      document.getElementById('tx-is-debt').checked = false;
+      toggleDebtMode();
       switchTab('transactions', 'Todas as Transações');
       loadInitialData();
     }).addTransaction(payload);

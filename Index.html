@@ -194,6 +194,18 @@
             <select id="tx-target-account" class="form-control"></select>
           </div>
 
+          <div class="form-group" id="debt-toggle-group">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 600; color: var(--text-main);">
+              <input type="checkbox" id="tx-is-debt" onchange="toggleDebtMode()" style="width: 18px; height: 18px; cursor: pointer;">
+              Pagamento de Dívida
+            </label>
+          </div>
+
+          <div class="form-group" id="debt-group" style="display: none;">
+            <label>Dívida / Empréstimo</label>
+            <select id="tx-debt" class="form-control"></select>
+          </div>
+
           <div class="form-group" id="cat-group">
             <label>Categoria</label>
             <select id="tx-category" class="form-control"></select>
