@@ -1,6 +1,7 @@
 function getAccountsOverview() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('Accounts');
+  if (!sheet) return { totalBalance: 0, accounts: [] };
   const data = sheet.getDataRange().getValues();
   
   const accounts = [];
@@ -9,7 +10,8 @@ function getAccountsOverview() {
   for (let i = 1; i < data.length; i++) {
     const [id, name, type, initialBal, currentBal] = data[i];
     if (!id) continue;
-    const balance = Number(currentBal) || 0;
+    // Calculate balance dynamically taking into account transactions up to today
+    const balance = calculateAccountBalanceUpToToday(id);
     grandTotal += balance;
     accounts.push({ id, name, type, initialBalance: Number(initialBal), balance });
   }

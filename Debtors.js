@@ -1,5 +1,6 @@
 function getDebts() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Debts');
+  if (!sheet) return [];
   const data = sheet.getDataRange().getValues();
   const debts = [];
   
@@ -27,13 +28,30 @@ function addDebt(person, type, amount, dueDate) {
 
 function recordDebtPayment(debtId, paymentAmount) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Debts');
+  if (!sheet) return null;
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0] == debtId) {
+    if (data[i][0].toString() == debtId.toString()) {
       const currentPaid = Number(data[i][4]) || 0;
-      sheet.getRange(i + 1, 5).setValue(currentPaid + Number(paymentAmount));
-      return { status: 'SUCCESS' };
+      const newPaid = currentPaid + Number(paymentAmount);
+      sheet.getRange(i + 1, 5).setValue(newPaid);
+      return { status: 'SUCCESS', person: data[i][1], newPaid: newPaid };
     }
   }
-  return { status: 'ERROR', message: 'Debt record not found' };
+  return null;
+}
+
+function revertDebtPayment(debtId, paymentAmount) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Debts');
+  if (!sheet) return null;
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0].toString() == debtId.toString()) {
+      const currentPaid = Number(data[i][4]) || 0;
+      const newPaid = Math.max(0, currentPaid - Number(paymentAmount));
+      sheet.getRange(i + 1, 5).setValue(newPaid);
+      return { status: 'SUCCESS', person: data[i][1], newPaid: newPaid };
+    }
+  }
+  return null;
 }
