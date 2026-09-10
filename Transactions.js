@@ -95,7 +95,6 @@ function getRecentTransactions() {
     };
   }).reverse();
 }
-2.
 
 /**
  * Delete transaction by ID

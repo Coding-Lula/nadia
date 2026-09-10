@@ -1,3 +1,49 @@
+function calculateAccountBalanceUpToToday(accountId) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const accSheet = ss.getSheetByName('Accounts');
+  if (!accSheet) return 0;
+
+  const accData = accSheet.getDataRange().getValues();
+  let balance = 0;
+
+  for (let i = 1; i < accData.length; i++) {
+    if (accData[i][0] && String(accData[i][0]) === String(accountId)) {
+      balance = Number(accData[i][3]) || 0;
+      break;
+    }
+  }
+
+  const txSheet = ss.getSheetByName('Transactions');
+  if (!txSheet) return balance;
+
+  const txData = txSheet.getDataRange().getValues();
+  const now = new Date();
+  now.setHours(23, 59, 59, 999);
+
+  for (let i = 1; i < txData.length; i++) {
+    const [txId, txDate, sourceAccId, type, category, rawAmount, description, targetAccId] = txData[i];
+    if (!txDate) continue;
+
+    const rowDate = new Date(txDate);
+    if (rowDate > now) continue;
+
+    const amount = Math.abs(Number(rawAmount) || 0);
+
+    const isSource = sourceAccId && String(sourceAccId) === String(accountId);
+    const isTarget = targetAccId && String(targetAccId) === String(accountId);
+
+    if (isSource) {
+      if (type === 'Income') balance += amount;
+      else if (type === 'Expense') balance -= amount;
+      else if (type === 'Transfer') balance -= amount;
+    } else if (isTarget) {
+      if (type === 'Transfer') balance += amount;
+    }
+  }
+
+  return balance;
+}
+
 function getAccountsOverview() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('Accounts');
