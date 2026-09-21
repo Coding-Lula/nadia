@@ -306,6 +306,8 @@ function renderGlobalTransactions(transactions) {
     }
   }
 
+  let currentStatementData = null;
+
   function fetchStatement(e) {
   e.preventDefault();
   const accId = document.getElementById('stmt-account').value;
@@ -315,6 +317,7 @@ function renderGlobalTransactions(transactions) {
   const category = document.getElementById('stmt-category').value;
 
   google.script.run.withSuccessHandler(data => {
+    currentStatementData = data;
     document.getElementById('stmt-op-bal').innerText = `${data.openingBalance.toFixed(2)} MT`;
     document.getElementById('stmt-inc').innerText = `${data.totalIncome.toFixed(2)} MT`;
     document.getElementById('stmt-exp').innerText = `${data.totalExpense.toFixed(2)} MT`;
@@ -340,6 +343,52 @@ function renderGlobalTransactions(transactions) {
 
     document.getElementById('statement-results').style.display = 'block';
   }).getStatementData(accId, start, end, type, category);
+}
+
+function exportStatementToExcel() {
+  if (!currentStatementData) {
+    alert('Nenhum dado de extrato para exportar.');
+    return;
+  }
+
+  const startDateInput = document.getElementById('stmt-start').value;
+  let mmdd = '';
+  if (startDateInput) {
+    const parts = startDateInput.split('-');
+    if (parts.length === 3) {
+      mmdd = `${parts[1]}-${parts[2]}`;
+    }
+  }
+  const filename = mmdd ? `extrato ${mmdd}.xlsx` : 'extrato.xlsx';
+
+  const data = currentStatementData;
+
+  const rows = [
+    ['Resumo do Período'],
+    ['Saldo Anterior', `${data.openingBalance.toFixed(2)} MT`],
+    ['Receitas', `${data.totalIncome.toFixed(2)} MT`],
+    ['Despesas', `${data.totalExpense.toFixed(2)} MT`],
+    ['Saldo Final', `${data.closingBalance.toFixed(2)} MT`],
+    [],
+    ['Transações'],
+    ['Data', 'Categoria', 'Descrição', 'Conta', 'Valor (MT)']
+  ];
+
+  data.transactions.forEach(tx => {
+    rows.push([
+      tx.date,
+      tx.category || '',
+      tx.description || '',
+      tx.accountName || '',
+      tx.amount
+    ]);
+  });
+
+  const worksheet = XLSX.utils.aoa_to_sheet(rows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Extrato');
+
+  XLSX.writeFile(workbook, filename);
 }
 
   /* OTHER CRUD HANDLERS */
