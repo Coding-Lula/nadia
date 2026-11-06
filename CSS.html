@@ -39,18 +39,18 @@
     border: 1px solid var(--border);
   }
   .card.despesas {
-  border: 2px solid red;
-  background-color: #ffe5e5; /* light red background */
-}
+    border: 2px solid red;
+    background-color: #ffe5e5; /* light red background */
+  }
 
-.card.receitas {
-  border: 2px solid green;
-  background-color: #e5ffe5; /* light green background */
-}
+  .card.receitas {
+    border: 2px solid green;
+    background-color: #e5ffe5; /* light green background */
+  }
 
-.card h3 {
-  margin: 0;
-}
+  .card h3 {
+    margin: 0;
+  }
 
   .balance-label { font-size: 0.85rem; color: var(--text-muted); text-align: center; }
   .balance-val { font-size: 1.75rem; font-weight: 800; color: var(--primary); text-align: center; margin: 4px 0 16px; }
@@ -122,12 +122,84 @@
   .stmt-card span { display: block; color: var(--text-muted); font-size: 0.75rem; }
   .stmt-card strong { font-size: 1rem; }
 
-  .table-container { overflow-x: auto; margin-top: 12px; }
+  .table-container { overflow-x: visible; margin-top: 12px; }
   table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-  th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--border); }
+  th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--border); position: relative; }
   th { background: #f9fafb; font-weight: 600; color: var(--text-muted); }
   .amt-credit { color: var(--success); font-weight: 600; }
   .amt-debit { color: var(--danger); font-weight: 600; }
+
+  /* Action Menu (Kebab / ...) in Histórico de Transações */
+  .action-menu-container {
+    position: relative;
+    display: inline-block;
+  }
+
+  .btn-kebab {
+    background: #4f46e5;
+    border: none;
+    color: #ffffff;
+    border-radius: 8px;
+    width: 34px;
+    height: 32px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    letter-spacing: 1px;
+    transition: background-color 0.15s;
+  }
+
+  .btn-kebab:hover, .btn-kebab.active {
+    background: #4338ca;
+  }
+
+  .action-dropdown-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+    z-index: 100;
+    min-width: 110px;
+    overflow: hidden;
+  }
+
+  .action-dropdown-menu.show {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dropdown-item-btn {
+    width: 100%;
+    padding: 8px 14px;
+    border: none;
+    background: none;
+    text-align: left;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .dropdown-item-btn:hover {
+    background: #f3f4f6;
+  }
+
+  .dropdown-item-btn.btn-delete-text {
+    color: var(--danger);
+  }
+
+  .dropdown-item-btn.btn-delete-text:hover {
+    background: #fee2e2;
+  }
 
   .bottom-nav {
     position: fixed;
@@ -137,6 +209,7 @@
     justify-content: space-around;
     padding: 10px 0;
     border-top: 1px solid var(--border);
+    z-index: 10;
   }
   .nav-item { display: flex; flex-direction: column; align-items: center; font-size: 0.75rem; color: var(--text-muted); cursor: pointer; }
   .nav-item.active { color: var(--primary); font-weight: 700; }
@@ -150,19 +223,19 @@
     cursor: pointer; border: none;
   }
   .badge-account {
-  display: inline-block;
-  font-size: 0.75rem;
-  background-color: #e5e7eb;
-  color: #374151;
-  padding: 2px 6px;
-  border-radius: 4px;
-  margin-top: 4px;
-  font-weight: 500;
+    display: inline-block;
+    font-size: 0.75rem;
+    background-color: #e5e7eb;
+    color: #374151;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-top: 4px;
+    font-weight: 500;
   }
 
   .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; }
   .modal.active { display: flex; }
-  .modal-content { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 400px; }
+  .modal-content { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 440px; }
 
   .view { display: none; }
   .view.active { display: block; }

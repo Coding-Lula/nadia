@@ -1,7 +1,17 @@
 function doGet() {
-  return HtmlService.createHtmlOutputFromFile('Index')
-      .setTitle('Team Budget Logger')
+  return HtmlService.createTemplateFromFile('Index')
+      .evaluate()
+      .setTitle('Gestão Financeira')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+// Generate unique ID helper with prefix
+function generateId(prefix) {
+  return (prefix || 'ID') + '_' + Utilities.getUuid().substring(0, 8).toUpperCase();
 }
 
 // Helper: Get Spreadsheet dynamically from Script Properties or active file
@@ -117,6 +127,7 @@ function logExpense(category, price, reason, currency) {
   sheet.appendRow([activeUserEmail, rowId, today, category, price, reason, currency, priceZar]);
   return "Success";
 }
+
 // POST: Add a new category to Budget_Master
 function addCategory(categoryName, budgetAmount) {
   var activeUserEmail = Session.getActiveUser().getEmail();
