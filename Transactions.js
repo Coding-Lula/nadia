@@ -11,15 +11,18 @@ function addTransaction(txPayload) {
   txSheet.appendRow([txId, date, accountId, type, category, numAmount, description, targetAccountId || '']);
   
   // Sync Accounts Sheet balances
-  updateAccountBalance(accSheet, accountId, type, numAmount, true);
-  if (type === 'Transfer' && targetAccountId) {
-    updateAccountBalance(accSheet, targetAccountId, 'Income', numAmount, false);
+  if (accSheet) {
+    updateAccountBalance(accSheet, accountId, type, numAmount, true);
+    if (type === 'Transfer' && targetAccountId) {
+      updateAccountBalance(accSheet, targetAccountId, 'Income', numAmount, false);
+    }
   }
   
   return { status: 'SUCCESS' };
 }
 
 function updateAccountBalance(accSheet, accountId, type, amount, isSource) {
+  if (!accSheet) return;
   const data = accSheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (data[i][0] == accountId) {
@@ -34,11 +37,27 @@ function updateAccountBalance(accSheet, accountId, type, amount, isSource) {
   }
 }
 
-// Summary for current month and comparison with previous month
+// Revert previous account balance impact
+function revertAccountBalance(accSheet, accountId, type, amount, isSource) {
+  if (!accSheet) return;
+  const data = accSheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] == accountId) {
+      let currentBalance = Number(data[i][4]) || 0;
+      if (type === 'Income') currentBalance -= amount;
+      else if (type === 'Expense') currentBalance += amount;
+      else if (type === 'Transfer' && isSource) currentBalance += amount;
+
+      accSheet.getRange(i + 1, 5).setValue(currentBalance);
+      break;
+    }
+  }
+}
+
+// Fixes the 0,00 MT issue on Painel Geral summary boxes for current month
 function getCurrentMonthSummary() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Transactions');
-  if (!sheet) return { monthlyIncome: 0, monthlyExpense: 0, netChangePercent: 0, vsLastMonth: 0 };
-
+  if (!sheet) return { monthlyIncome: 0, monthlyExpense: 0 };
   const data = sheet.getDataRange().getValues();
   
   const now = new Date();
@@ -106,8 +125,10 @@ function getRecentTransactions() {
 
   const rows = txSheet.getDataRange().getValues().slice(1);
 
+  // Return mapped transaction objects including accountName and all fields
   return rows.map(row => {
     const accId = row[2];
+    const targetAccId = row[7] || '';
     return {
       id: row[0],
       date: row[1] ? Utilities.formatDate(new Date(row[1]), ss.getSpreadsheetTimeZone(), "yyyy-MM-dd") : '',
@@ -116,7 +137,9 @@ function getRecentTransactions() {
       type: row[3],
       category: row[4],
       amount: parseFloat(row[5]) || 0,
-      description: row[6] || ''
+      description: row[6] || '',
+      targetAccountId: targetAccId,
+      targetAccountName: accMap[targetAccId] || targetAccId || ''
     };
   }).reverse();
 }
@@ -127,11 +150,24 @@ function getRecentTransactions() {
 function deleteTransaction(txId) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('Transactions');
+  const accSheet = ss.getSheetByName('Accounts');
   if (!sheet) return;
 
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (data[i][0].toString() === txId.toString()) {
+      const oldAccountId = data[i][2];
+      const oldType = data[i][3];
+      const oldAmount = Number(data[i][5]) || 0;
+      const oldTargetAccountId = data[i][7] || '';
+
+      if (accSheet) {
+        revertAccountBalance(accSheet, oldAccountId, oldType, oldAmount, true);
+        if (oldType === 'Transfer' && oldTargetAccountId) {
+          revertAccountBalance(accSheet, oldTargetAccountId, 'Income', oldAmount, false);
+        }
+      }
+
       sheet.deleteRow(i + 1);
       break;
     }
@@ -139,22 +175,62 @@ function deleteTransaction(txId) {
 }
 
 /**
- * Update transaction details
+ * Update transaction details with balance synchronization across all fields
  */
 function updateTransaction(payload) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('Transactions');
+  const accSheet = ss.getSheetByName('Accounts');
   if (!sheet) return;
 
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (data[i][0].toString() === payload.id.toString()) {
-      sheet.getRange(i + 1, 5).setValue(payload.category);
-      sheet.getRange(i + 1, 6).setValue(parseFloat(payload.amount));
-      sheet.getRange(i + 1, 7).setValue(payload.description);
+      // Row structure: [0: ID, 1: Date, 2: Account_ID, 3: Type, 4: Category, 5: Amount, 6: Description, 7: Target_Account_ID]
+      const oldAccountId = data[i][2];
+      const oldType = data[i][3];
+      const oldAmount = Number(data[i][5]) || 0;
+      const oldTargetAccountId = data[i][7] || '';
+
+      // 1. Revert old balance impact
+      if (accSheet) {
+        revertAccountBalance(accSheet, oldAccountId, oldType, oldAmount, true);
+        if (oldType === 'Transfer' && oldTargetAccountId) {
+          revertAccountBalance(accSheet, oldTargetAccountId, 'Income', oldAmount, false);
+        }
+      }
+
+      // 2. Parse new values
+      const newDate = payload.date ? new Date(payload.date) : new Date(data[i][1]);
+      const newAccountId = payload.accountId !== undefined ? payload.accountId : oldAccountId;
+      const newType = payload.type !== undefined ? payload.type : oldType;
+      const newCategory = payload.category !== undefined ? payload.category : data[i][4];
+      const newAmount = payload.amount !== undefined ? parseFloat(payload.amount) : oldAmount;
+      const newDescription = payload.description !== undefined ? payload.description : data[i][6];
+      const newTargetAccountId = (newType === 'Transfer' && payload.targetAccountId) ? payload.targetAccountId : '';
+
+      // 3. Update spreadsheet row
+      sheet.getRange(i + 1, 2).setValue(newDate);
+      sheet.getRange(i + 1, 3).setValue(newAccountId);
+      sheet.getRange(i + 1, 4).setValue(newType);
+      sheet.getRange(i + 1, 5).setValue(newCategory);
+      sheet.getRange(i + 1, 6).setValue(newAmount);
+      sheet.getRange(i + 1, 7).setValue(newDescription);
+      sheet.getRange(i + 1, 8).setValue(newTargetAccountId);
+
+      // 4. Apply new balance impact
+      if (accSheet) {
+        updateAccountBalance(accSheet, newAccountId, newType, newAmount, true);
+        if (newType === 'Transfer' && newTargetAccountId) {
+          updateAccountBalance(accSheet, newTargetAccountId, 'Income', newAmount, false);
+        }
+      }
+
       break;
     }
   }
+
+  return { status: 'SUCCESS' };
 }
 
 /**
@@ -177,6 +253,7 @@ function getCategoryBreakdown(filterType) {
   const categoryTotals = {};
   let totalSum = 0;
 
+  // Columns: [0: ID, 1: Date, 2: Account, 3: Type, 4: Category, 5: Amount, 6: Description]
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
     if (!row[1]) continue;
@@ -209,9 +286,4 @@ function getCategoryBreakdown(filterType) {
     total: totalSum,
     items: sortedCategories
   };
-}
-
-// Backward-compatible alias for existing callers
-function getCategoryExpenseBreakdown() {
-  return getCategoryBreakdown('Expense');
 }
