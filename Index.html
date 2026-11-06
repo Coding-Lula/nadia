@@ -36,10 +36,18 @@
 
       <!-- Category Chart Card -->
       <div class="card">
-        <h3 style="font-size: 1rem; margin-bottom: 12px;">Despesas por Categoria</h3>
-        <div style="position: relative; height: 220px; width: 100%;">
-          <canvas id="categoryChart"></canvas>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <h3 style="font-size: 1rem; margin: 0; font-weight: 700;">Despesas por Categoria</h3>
+          <span id="chart-month-badge" style="font-size: 0.75rem; background: #e6f4ea; color: #137333; padding: 2px 8px; border-radius: 12px; font-weight: 600;">Este Mês</span>
         </div>
+        <div class="chart-container-wrapper">
+          <canvas id="categoryChart" width="220" height="220"></canvas>
+          <div class="chart-center-overlay" id="chart-center-overlay" style="display: none;">
+            <div class="chart-center-amount" id="chart-center-amount">0.00 MT</div>
+            <div class="chart-center-label">Total Gasto</div>
+          </div>
+        </div>
+        <div id="categoryChartLegend" class="custom-chart-legend"></div>
       </div>
 
       <!-- Quick Add Transaction Card -->
@@ -365,7 +373,7 @@
     </div>
   </div>
 
-  <!-- MODAL: EDIT TRANSACTION (Will be fully updated in steps 2 and 3) -->
+  <!-- MODAL: EDIT TRANSACTION -->
   <div id="modal-edit-tx" class="modal">
     <div class="modal-content" style="max-width: 440px;">
       <h3 style="margin-bottom: 16px;">Editar Transação</h3>
@@ -374,7 +382,7 @@
 
         <!-- Type Selector -->
         <div class="form-group">
-          <label>Tipo</label>
+          <label>Tipo de Transação</label>
           <div class="type-selector">
             <button type="button" id="edit-btn-type-expense" class="type-btn" onclick="selectEditTxType('Expense')">Despesa</button>
             <button type="button" id="edit-btn-type-income" class="type-btn" onclick="selectEditTxType('Income')">Receita</button>
@@ -383,7 +391,7 @@
           <input type="hidden" id="edit-tx-type" value="Expense">
         </div>
 
-        <!-- Account -->
+        <!-- Source Account -->
         <div class="form-group">
           <label>Conta</label>
           <select id="edit-tx-account" class="form-control" required></select>
@@ -395,22 +403,36 @@
           <select id="edit-tx-target-account" class="form-control"></select>
         </div>
 
-        <!-- Date -->
-        <div class="form-group">
-          <label>Data</label>
-          <input type="date" id="edit-tx-date" class="form-control" required>
+        <!-- Debt Toggle Checkbox -->
+        <div class="form-group" id="edit-debt-toggle-group">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: normal;">
+            <input type="checkbox" id="edit-tx-is-debt" onchange="toggleEditDebtMode()">
+            <span>Amortizar dívida / empréstimo</span>
+          </label>
         </div>
 
-        <!-- Category -->
+        <!-- Debt Select Dropdown -->
+        <div class="form-group" id="edit-debt-group" style="display: none;">
+          <label>Selecione a Dívida</label>
+          <select id="edit-tx-debt" class="form-control"></select>
+        </div>
+
+        <!-- Category (for Income / Expense if not Debt) -->
         <div class="form-group" id="edit-cat-group">
-          <label>Despesa / Categoria</label>
+          <label>Categoria</label>
           <select id="edit-tx-category" class="form-control"></select>
         </div>
 
         <!-- Amount -->
         <div class="form-group">
           <label>Valor (MT)</label>
-          <input type="number" id="edit-tx-amount" class="form-control" step="0.01" min="0.01" required>
+          <input type="number" id="edit-tx-amount" class="form-control" step="0.01" min="0.01" required placeholder="0.00">
+        </div>
+
+        <!-- Date -->
+        <div class="form-group">
+          <label>Data</label>
+          <input type="date" id="edit-tx-date" class="form-control" required>
         </div>
 
         <!-- Description -->
