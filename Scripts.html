@@ -17,7 +17,9 @@
   };
 
   function switchTab(tabId, title) {
+    // Hide all views
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    // Un-highlight all nav tabs
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
 
     const txDateEl = document.getElementById('tx-date');
@@ -29,6 +31,7 @@
     const targetView = document.getElementById(`view-${tabId}`);
     if (targetView) targetView.classList.add('active');
 
+    // Highlight target nav tab
     const targetNav = document.getElementById(`nav-${tabId}`);
     if (targetNav) targetNav.classList.add('active');
 
@@ -168,7 +171,7 @@
       renderAccountsList(data.accounts);
     }).getAccountsOverview();
 
-    // 2. Current Month Totals & Trend
+    // 2. Current Month Totals
     google.script.run.withSuccessHandler(summary => {
       const incEl = document.getElementById('dash-total-income');
       const expEl = document.getElementById('dash-total-expense');
@@ -196,126 +199,10 @@
     }).getCategoryExpenseBreakdown();
   }
 
-  function renderDonutChart(data) {
-    const canvas = document.getElementById('categoryChart');
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (chartInstance) {
-      chartInstance.destroy();
-    }
-
-    if (!data || !data.values || data.values.length === 0 || data.total === 0) {
-      chartInstance = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-          labels: ['Sem dados'],
-          datasets: [{
-            data: [1],
-            backgroundColor: ['#e4ebe6'],
-            borderWidth: 0
-          }]
-        },
-        options: {
-          cutout: '76%',
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: { enabled: false }
-          }
-        }
-      });
-      return;
-    }
-
-    // Colors matching reference pill segmented shades of green
-    const colors = data.labels.map((_, i) => sagePalette[i % sagePalette.length]);
-
-    chartInstance = new Chart(ctx, {
-      type: 'doughnut',
-      data: {
-        labels: data.labels,
-        datasets: [{
-          data: data.values,
-          backgroundColor: colors,
-          borderWidth: 5,
-          borderColor: '#ffffff',
-          borderRadius: 20, // Rounded pill-shaped doughnut segments
-          spacing: 2
-        }]
-      },
-      options: {
-        cutout: '74%',
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                const val = context.raw || 0;
-                const total = data.total || 1;
-                const pct = ((val / total) * 100).toFixed(1);
-                return ` ${context.label}: ${val.toFixed(2)} MT (${pct}%)`;
-              }
-            }
-          }
-        }
-      }
-    });
-  }
-
-  function renderCategoryBreakdownList(items) {
-    const container = document.getElementById('category-breakdown-list');
-    const verTodosBtn = document.getElementById('btn-ver-todos-cats');
-    if (!container) return;
-
-    container.innerHTML = '';
-
-    if (!items || items.length === 0) {
-      container.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 10px 0;">Nenhuma categoria registada neste mês.</div>';
-      if (verTodosBtn) verTodosBtn.style.display = 'none';
-      return;
-    }
-
-    const hasMoreThan5 = items.length > 5;
-    const itemsToDisplay = showAllBreakdownCategories ? items : items.slice(0, 5);
-
-    itemsToDisplay.forEach((item, index) => {
-      const color = sagePalette[index % sagePalette.length];
-      const div = document.createElement('div');
-      div.className = 'category-item';
-      div.innerHTML = `
-        <div class="category-item-left">
-          <span class="category-dot" style="background-color: ${color};"></span>
-          <span class="category-name-text" title="${item.category}">${item.category}</span>
-        </div>
-        <span class="category-pct-text">${Math.round(item.percentage)}%</span>
-      `;
-      container.appendChild(div);
-    });
-
-    if (verTodosBtn) {
-      if (hasMoreThan5) {
-        verTodosBtn.style.display = 'block';
-        verTodosBtn.innerText = showAllBreakdownCategories ? 'Ver menos' : `Ver todos (${items.length})`;
-      } else {
-        verTodosBtn.style.display = 'none';
-      }
-    }
-  }
-
-  function toggleAllCategories() {
-    showAllBreakdownCategories = !showAllBreakdownCategories;
-    renderCategoryBreakdownList(currentBreakdownData.items || []);
-  }
-
-  /* Transactions Tab */
   function loadGlobalTransactions() {
     google.script.run.withSuccessHandler(transactions => {
-      globalTransactions = transactions || [];
-      renderGlobalTransactions(globalTransactions);
+      globalTransactions = transactions;
+      renderGlobalTransactions(transactions);
     }).getRecentTransactions();
   }
 
@@ -476,12 +363,12 @@
     }
 
     google.script.run.withSuccessHandler(() => {
-      closeModal('modal-add-tx');
+      alert('Transação guardada com sucesso!');
       document.getElementById('form-tx').reset();
       document.getElementById('tx-is-debt').checked = false;
       toggleDebtMode();
+      switchTab('transactions', 'Todas as Transações');
       loadInitialData();
-      loadGlobalTransactions();
     }).addTransaction(payload);
   }
 
@@ -739,9 +626,9 @@
     container.innerHTML = '';
     accounts.forEach(acc => {
       container.innerHTML += `
-        <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border);">
+        <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border);">
           <div><strong>${acc.name}</strong><br><small style="color: var(--text-muted);">${acc.type}</small></div>
-          <div style="font-weight: 700; color: var(--text-main);">${acc.balance.toFixed(2)} MT</div>
+          <div style="font-weight: 700;">${acc.balance.toFixed(2)} MT</div>
         </div>
       `;
     });
@@ -781,7 +668,7 @@
     debts.forEach(d => {
       const remaining = d.totalAmount - d.paidAmount;
       container.innerHTML += `
-        <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border);">
+        <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border);">
           <div><strong>${d.person}</strong> (${d.type === 'Lend' ? 'Emprestado' : 'Dívida'})<br><small>Vencimento: ${d.dueDate}</small></div>
           <div style="font-weight: 700; color: ${d.type === 'Lend' ? 'var(--success)' : 'var(--danger)'};">${remaining.toFixed(2)} MT</div>
         </div>

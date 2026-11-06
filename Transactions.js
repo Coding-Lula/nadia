@@ -64,48 +64,25 @@ function getCurrentMonthSummary() {
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
   
-  const prevMonthDate = new Date(currentYear, currentMonth - 1, 1);
-  const prevMonth = prevMonthDate.getMonth();
-  const prevYear = prevMonthDate.getFullYear();
-
   let monthlyIncome = 0;
   let monthlyExpense = 0;
-  let prevMonthExpense = 0;
-  let prevMonthIncome = 0;
   
   for (let i = 1; i < data.length; i++) {
     const [txId, txDate, accId, type, category, amount] = data[i];
-    if (!txDate) continue;
     const rowDate = new Date(txDate);
-    const val = Number(amount) || 0;
     
     if (rowDate.getMonth() === currentMonth && rowDate.getFullYear() === currentYear) {
+      const val = Number(amount) || 0;
       if (type === 'Income') monthlyIncome += val;
       if (type === 'Expense') monthlyExpense += val;
-    } else if (rowDate.getMonth() === prevMonth && rowDate.getFullYear() === prevYear) {
-      if (type === 'Income') prevMonthIncome += val;
-      if (type === 'Expense') prevMonthExpense += val;
     }
   }
   
-  let vsLastMonth = 0;
-  if (prevMonthExpense > 0) {
-    vsLastMonth = ((monthlyExpense - prevMonthExpense) / prevMonthExpense) * 100;
-  } else if (monthlyExpense > 0) {
-    vsLastMonth = 100;
-  }
-
-  return {
-    monthlyIncome,
-    monthlyExpense,
-    prevMonthExpense,
-    prevMonthIncome,
-    vsLastMonth: Number(vsLastMonth.toFixed(1))
-  };
+  return { monthlyIncome, monthlyExpense };
 }
 
 /**
- * Fetches recent transactions across all accounts
+ * Fetches recent transactions across all accounts for the Global Transactions tab
  */
 function getRecentTransactions() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -114,12 +91,12 @@ function getRecentTransactions() {
 
   if (!txSheet) return [];
 
-  // Build Account ID -> Account Name map
+  // 1. Build Account ID -> Account Name map
   const accMap = {};
   if (accSheet) {
     const accRows = accSheet.getDataRange().getValues().slice(1);
     accRows.forEach(row => {
-      accMap[row[0]] = row[1];
+      accMap[row[0]] = row[1]; // row[0] = Account_ID, row[1] = Account_Name
     });
   }
 
@@ -234,56 +211,43 @@ function updateTransaction(payload) {
 }
 
 /**
- * Calculates current month's breakdown aggregated by category for chart and list.
- * @param {string} filterType 'Expense' or 'Income'
+ * Calculates current month's expenses aggregated by category for the chart
  */
-function getCategoryBreakdown(filterType) {
-  const targetType = filterType === 'Income' ? 'Income' : 'Expense';
+function getCategoryExpenseBreakdown() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('Transactions');
-  if (!sheet) return { labels: [], values: [], total: 0, items: [] };
+  if (!sheet) return { labels: [], values: [] };
 
   const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return { labels: [], values: [], total: 0, items: [] };
+  if (data.length <= 1) return { labels: [], values: [] };
 
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
 
   const categoryTotals = {};
-  let totalSum = 0;
 
   // Columns: [0: ID, 1: Date, 2: Account, 3: Type, 4: Category, 5: Amount, 6: Description]
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
-    if (!row[1]) continue;
     const txDate = new Date(row[1]);
     const type = row[3];
     const category = row[4] || 'Outros';
     const amount = parseFloat(row[5]) || 0;
 
+    // Filter for Expenses in the current month
     if (
       txDate.getMonth() === currentMonth &&
       txDate.getFullYear() === currentYear &&
-      type === targetType
+      (type === 'Expense' || amount < 0)
     ) {
       const positiveAmt = Math.abs(amount);
       categoryTotals[category] = (categoryTotals[category] || 0) + positiveAmt;
-      totalSum += positiveAmt;
     }
   }
 
-  // Convert to sorted array of items descending by amount
-  const sortedCategories = Object.keys(categoryTotals).map(cat => ({
-    category: cat,
-    amount: categoryTotals[cat],
-    percentage: totalSum > 0 ? (categoryTotals[cat] / totalSum) * 100 : 0
-  })).sort((a, b) => b.amount - a.amount);
-
   return {
-    labels: sortedCategories.map(c => c.category),
-    values: sortedCategories.map(c => c.amount),
-    total: totalSum,
-    items: sortedCategories
+    labels: Object.keys(categoryTotals),
+    values: Object.values(categoryTotals)
   };
 }
