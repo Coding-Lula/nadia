@@ -1,58 +1,283 @@
 <style>
   :root {
-    --primary: #1a56db;
-    --primary-hover: #1e429f;
-    --bg: #f4f5f7;
+    --primary: #1e4620; /* Dark forest green */
+    --primary-hover: #163518;
+    --accent: #2e7d32;
+    --bg-top: #ffffff;
+    --bg-bottom: #ebf3ed;
     --card-bg: #ffffff;
-    --text-main: #1f2937;
+    --text-main: #19271d;
     --text-muted: #6b7280;
-    --success: #0e9f6e;
-    --danger: #f05252;
-    --border: #e5e7eb;
+    --success: #10b981;
+    --danger: #ef4444;
+    --border: #e2e8f0;
+    --card-radius: 20px;
   }
 
-  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-  body { background-color: var(--bg); color: var(--text-main); padding-bottom: 80px; }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+
+  body {
+    background: linear-gradient(180deg, var(--bg-top) 0%, #f4f8f5 25%, var(--bg-bottom) 100%);
+    background-attachment: fixed;
+    color: var(--text-main);
+    min-height: 100vh;
+    padding-bottom: 90px;
+  }
 
   header {
-    background: var(--card-bg);
+    background: transparent;
     padding: 16px 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid var(--border);
     position: sticky;
     top: 0;
     z-index: 10;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
   }
 
-  header h1 { font-size: 1.25rem; font-weight: 700; }
+  header h1 { font-size: 1.3rem; font-weight: 700; color: #1e3a2b; letter-spacing: -0.3px; }
 
   .container { max-width: 600px; margin: 0 auto; padding: 16px; }
 
   .card {
     background: var(--card-bg);
-    border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 16px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    border: 1px solid var(--border);
+    border-radius: var(--card-radius);
+    padding: 20px;
+    margin-bottom: 18px;
+    box-shadow: 0 4px 20px -2px rgba(26, 46, 33, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(226, 232, 240, 0.8);
   }
+
   .card.despesas {
-    border: 2px solid red;
-    background-color: #ffe5e5; /* light red background */
+    border: 1.5px solid #fecaca;
+    background-color: #fffbfa;
   }
 
   .card.receitas {
-    border: 2px solid green;
-    background-color: #e5ffe5; /* light green background */
+    border: 1.5px solid #bbf7d0;
+    background-color: #f7fee7;
   }
 
   .card h3 {
     margin: 0;
+    color: #1a2e21;
   }
 
-  /* Donut Chart Styling matching reference */
+  /* TOP DARK FOREST GREEN CARD (Matching Reference Image) */
+  .dark-balance-card {
+    background: linear-gradient(145deg, #163e26 0%, #1e4d32 50%, #0d2818 100%);
+    color: #ffffff;
+    border-radius: 24px;
+    padding: 24px 22px;
+    margin-bottom: 20px;
+    box-shadow: 0 10px 25px -5px rgba(22, 62, 38, 0.35), 0 8px 10px -6px rgba(22, 62, 38, 0.2);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .dark-card-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .balance-pill-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #e2f1e6;
+  }
+
+  .balance-pill-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .balance-eye-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #cbd5e1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 4px;
+    margin-left: 2px;
+    transition: color 0.15s ease;
+  }
+
+  .balance-eye-btn:hover {
+    color: #ffffff;
+  }
+
+  .dark-card-right-icon {
+    display: flex;
+    align-items: center;
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .dark-card-mid-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .dark-card-balance {
+    font-size: 2.1rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: #ffffff;
+    line-height: 1.1;
+  }
+
+  .dark-card-balance .cents {
+    font-size: 1.4rem;
+    opacity: 0.9;
+    font-weight: 600;
+  }
+
+  .dark-card-balance .currency {
+    font-size: 1.1rem;
+    margin-left: 4px;
+    opacity: 0.85;
+    font-weight: 600;
+  }
+
+  .dark-card-badge-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  .net-percent-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 4px 10px;
+    border-radius: 14px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #d1fae5;
+  }
+
+  .net-percent-badge.negative {
+    color: #fecaca;
+    background: rgba(239, 68, 68, 0.2);
+  }
+
+  .net-percent-subtext {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin-top: 3px;
+  }
+
+  .dark-card-embedded-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .dark-stat-box {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dark-stat-label {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.75);
+    margin-bottom: 2px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .dark-stat-val {
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+
+  .dark-stat-val.income {
+    color: #6ee7b7;
+  }
+
+  .dark-stat-val.expense {
+    color: #fca5a5;
+  }
+
+  /* QUICK ACTIONS GRID (Under top card) */
+  .quick-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .quick-action-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    background: none;
+    border: none;
+    text-decoration: none;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .quick-action-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    color: #1e4620;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+    cursor: pointer;
+  }
+
+  .quick-action-item:hover .quick-action-btn,
+  .quick-action-item:active .quick-action-btn {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(30, 70, 32, 0.12);
+    background: #f8faf8;
+  }
+
+  .quick-action-label {
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: #374151;
+    margin-top: 8px;
+    text-align: center;
+  }
+
+  /* DONUT CHART STYLING */
   .chart-container-wrapper {
     position: relative;
     width: 220px;
@@ -72,7 +297,7 @@
   .chart-center-amount {
     font-size: 1.25rem;
     font-weight: 800;
-    color: #064e3b;
+    color: #163e26;
     line-height: 1.2;
   }
 
@@ -124,37 +349,65 @@
 
   .legend-percent {
     font-weight: 700;
-    color: #064e3b;
+    color: #163e26;
     font-size: 0.82rem;
     margin-left: 6px;
   }
 
-  .balance-label { font-size: 0.85rem; color: var(--text-muted); text-align: center; }
-  .balance-val { font-size: 1.75rem; font-weight: 800; color: var(--primary); text-align: center; margin: 4px 0 16px; }
+  /* SEE ALL / VER TODOS TOGGLE BUTTON */
+  .legend-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    width: 100%;
+    margin-top: 12px;
+    padding: 8px;
+    background: #f1f6f2;
+    color: #1e4620;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
 
+  .legend-toggle-btn:hover {
+    background: #e2ede4;
+  }
+
+  /* GENERAL FORM CONTROLS & UTILITIES */
   .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .stat-box { background: #f9fafb; padding: 12px; border-radius: 8px; text-align: center; border: 1px solid var(--border); }
+  .stat-box { background: #f9fafb; padding: 12px; border-radius: 12px; text-align: center; border: 1px solid var(--border); }
   .stat-box.income .val { color: var(--success); font-weight: 700; font-size: 1.1rem; }
   .stat-box.expense .val { color: var(--danger); font-weight: 700; font-size: 1.1rem; }
 
-  .form-group { margin-bottom: 12px; }
-  .form-group label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; }
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 0.82rem; font-weight: 600; color: #4b5563; margin-bottom: 6px; }
   .form-control {
     width: 100%;
-    padding: 10px 12px;
+    padding: 11px 14px;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 12px;
     font-size: 0.95rem;
     background: #fff;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  .form-control:focus {
+    border-color: #1e4620;
+    box-shadow: 0 0 0 3px rgba(30, 70, 32, 0.1);
   }
 
   /* Color-Coded Transação Switcher */
-  .type-selector { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  .type-selector { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
   .type-btn {
-    padding: 10px;
+    padding: 11px;
     border: 1px solid var(--border);
     background: #f9fafb;
-    border-radius: 8px;
+    border-radius: 12px;
     font-weight: 600;
     font-size: 0.85rem;
     color: var(--text-muted);
@@ -162,48 +415,50 @@
     transition: all 0.2s;
   }
   .type-btn.active-expense { background: var(--danger); color: white; border-color: var(--danger); }
-  .type-btn.active-income { background: var(--success); color: white; border-color: var(--success); }
-  .type-btn.active-transfer { background: var(--primary); color: white; border-color: var(--primary); }
+  .type-btn.active-income { background: #059669; color: white; border-color: #059669; }
+  .type-btn.active-transfer { background: #1e4620; color: white; border-color: #1e4620; }
 
   .btn {
     width: 100%;
     padding: 12px;
     border: none;
-    border-radius: 8px;
-    background: var(--primary);
+    border-radius: 12px;
+    background: #1e4620;
     color: white;
     font-weight: 600;
     font-size: 0.95rem;
     cursor: pointer;
+    transition: background 0.15s;
   }
+  .btn:hover { background: #163618; }
   .btn-secondary { background: #6b7280; }
-  .btn-sm { padding: 6px 12px; font-size: 0.8rem; border-radius: 6px; background: var(--primary); color: white; border: none; cursor: pointer; }
-  .btn-danger-sm { padding: 4px 8px; font-size: 0.75rem; border-radius: 4px; background: var(--danger); color: white; border: none; cursor: pointer; }
+  .btn-secondary:hover { background: #4b5563; }
+  .btn-sm { padding: 7px 14px; font-size: 0.82rem; border-radius: 10px; background: #1e4620; color: white; border: none; cursor: pointer; }
+  .btn-sm:hover { background: #163618; }
+  .btn-danger-sm { padding: 4px 10px; font-size: 0.75rem; border-radius: 6px; background: var(--danger); color: white; border: none; cursor: pointer; }
   .btn-download {
-    padding: 6px 10px;
-    font-size: 0.9rem;
+    padding: 7px 12px;
+    font-size: 0.85rem;
     font-weight: bold;
-    border-radius: 6px;
+    border-radius: 10px;
     background: #10b981;
     color: white;
     border: none;
     cursor: pointer;
     transition: background 0.2s;
   }
-  .btn-download:hover {
-    background: #059669;
-  }
+  .btn-download:hover { background: #059669; }
 
-  .statement-summary { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 12px; }
-  .stmt-card { background: #f8fafc; padding: 10px; border-radius: 8px; font-size: 0.85rem; }
-  .stmt-card span { display: block; color: var(--text-muted); font-size: 0.75rem; }
-  .stmt-card strong { font-size: 1rem; }
+  .statement-summary { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 14px; }
+  .stmt-card { background: #f8fafc; padding: 12px; border-radius: 12px; font-size: 0.85rem; border: 1px solid var(--border); }
+  .stmt-card span { display: block; color: var(--text-muted); font-size: 0.75rem; margin-bottom: 2px; }
+  .stmt-card strong { font-size: 1.05rem; }
 
   .table-container { overflow-x: visible; margin-top: 12px; }
   table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-  th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--border); position: relative; }
+  th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid var(--border); position: relative; }
   th { background: #f9fafb; font-weight: 600; color: var(--text-muted); }
-  .amt-credit { color: var(--success); font-weight: 600; }
+  .amt-credit { color: #059669; font-weight: 600; }
   .amt-debit { color: var(--danger); font-weight: 600; }
 
   /* Action Menu (Kebab / ...) in Histórico de Transações */
@@ -213,10 +468,10 @@
   }
 
   .btn-kebab {
-    background: #4f46e5;
+    background: #1e4620;
     border: none;
     color: #ffffff;
-    border-radius: 8px;
+    border-radius: 10px;
     width: 34px;
     height: 32px;
     font-size: 1.1rem;
@@ -231,7 +486,7 @@
   }
 
   .btn-kebab:hover, .btn-kebab.active {
-    background: #4338ca;
+    background: #163618;
   }
 
   .action-dropdown-menu {
@@ -241,10 +496,10 @@
     top: calc(100% + 4px);
     background: #ffffff;
     border: 1px solid var(--border);
-    border-radius: 8px;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+    border-radius: 12px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
     z-index: 100;
-    min-width: 110px;
+    min-width: 120px;
     overflow: hidden;
   }
 
@@ -255,7 +510,7 @@
 
   .dropdown-item-btn {
     width: 100%;
-    padding: 8px 14px;
+    padding: 10px 14px;
     border: none;
     background: none;
     text-align: left;
@@ -281,38 +536,41 @@
   .bottom-nav {
     position: fixed;
     bottom: 0; left: 0; right: 0;
-    background: var(--card-bg);
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     display: flex;
     justify-content: space-around;
-    padding: 10px 0;
+    padding: 10px 0 14px 0;
     border-top: 1px solid var(--border);
     z-index: 10;
   }
-  .nav-item { display: flex; flex-direction: column; align-items: center; font-size: 0.75rem; color: var(--text-muted); cursor: pointer; }
-  .nav-item.active { color: var(--primary); font-weight: 700; }
-
-  .fab {
-    position: fixed; bottom: 70px; right: 20px;
-    background: var(--primary); color: white;
-    width: 52px; height: 52px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.5rem; box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-    cursor: pointer; border: none;
+  .nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-weight: 500;
+    transition: color 0.15s ease;
   }
+  .nav-item.active { color: #1e4620; font-weight: 700; }
+
   .badge-account {
     display: inline-block;
     font-size: 0.75rem;
     background-color: #e5e7eb;
     color: #374151;
     padding: 2px 6px;
-    border-radius: 4px;
+    border-radius: 6px;
     margin-top: 4px;
     font-weight: 500;
   }
 
-  .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; }
+  .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
   .modal.active { display: flex; }
-  .modal-content { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 440px; }
+  .modal-content { background: white; padding: 22px; border-radius: var(--card-radius); width: 90%; max-width: 440px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); }
 
   .view { display: none; }
   .view.active { display: block; }

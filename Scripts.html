@@ -5,6 +5,12 @@
   let globalTransactions = [];
   let chartInstance = null;
 
+  // State variables for new features
+  let actualTotalBalance = 0;
+  let isBalanceHidden = false;
+  let rawCategoryChartData = { labels: [], values: [] };
+  let isCategoriesExpanded = false;
+
   window.onload = function() {
     loadInitialData();
 
@@ -40,6 +46,85 @@
 
     if (tabId === 'transactions') {
       loadGlobalTransactions();
+    }
+  }
+
+  function scrollToTransactionForm() {
+    switchTab('home', 'Painel Geral');
+    const formCard = document.getElementById('card-add-tx');
+    if (formCard) {
+      setTimeout(() => {
+        formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const firstInput = document.getElementById('tx-account');
+        if (firstInput) firstInput.focus();
+      }, 100);
+    }
+  }
+
+  /* EYE TOGGLE: BALANCE VISIBILITY */
+  function toggleBalanceVisibility() {
+    isBalanceHidden = !isBalanceHidden;
+    updateBalanceDisplay();
+  }
+
+  function updateBalanceDisplay() {
+    const balEl = document.getElementById('dash-total-balance');
+    const eyeOpen = document.getElementById('eye-icon-open');
+    const eyeClosed = document.getElementById('eye-icon-closed');
+
+    if (!balEl) return;
+
+    if (isBalanceHidden) {
+      balEl.innerHTML = `•••••• <span class="currency">MT</span>`;
+      if (eyeOpen) eyeOpen.style.display = 'none';
+      if (eyeClosed) eyeClosed.style.display = 'inline-block';
+    } else {
+      // Split integer and cents like the reference design ($12,480 .50)
+      const formatted = Number(actualTotalBalance || 0).toLocaleString('pt-MZ', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+      const parts = formatted.split(',');
+      const intPart = parts[0];
+      const centPart = parts[1] || '00';
+
+      balEl.innerHTML = `${intPart}<span class="cents">,${centPart}</span> <span class="currency">MT</span>`;
+      if (eyeOpen) eyeOpen.style.display = 'inline-block';
+      if (eyeClosed) eyeClosed.style.display = 'none';
+    }
+  }
+
+  /* UPDATE RECEITAS VS DESPESAS PERCENTAGE BADGE */
+  function updateNetPercentageBadge(monthlyIncome, monthlyExpense) {
+    const badgeEl = document.getElementById('dash-net-badge');
+    const badgeValEl = document.getElementById('dash-net-badge-val');
+    const badgeIconEl = document.getElementById('dash-net-badge-icon');
+
+    if (!badgeEl || !badgeValEl || !badgeIconEl) return;
+
+    const income = Number(monthlyIncome) || 0;
+    const expense = Number(monthlyExpense) || 0;
+
+    if (income === 0 && expense === 0) {
+      badgeValEl.innerText = '0.0%';
+      badgeIconEl.innerText = '•';
+      badgeEl.className = 'net-percent-badge';
+      return;
+    }
+
+    // Ratio / Net difference calculation:
+    // If income >= expense: positive surplus percentage
+    // If expense > income: deficit percentage
+    if (income >= expense) {
+      const pct = expense > 0 ? (((income - expense) / income) * 100).toFixed(1) : '100.0';
+      badgeValEl.innerText = `+${pct}%`;
+      badgeIconEl.innerText = '▲';
+      badgeEl.className = 'net-percent-badge';
+    } else {
+      const pct = income > 0 ? (((expense - income) / expense) * 100).toFixed(1) : '100.0';
+      badgeValEl.innerText = `-${pct}%`;
+      badgeIconEl.innerText = '▼';
+      badgeEl.className = 'net-percent-badge negative';
     }
   }
 
@@ -217,8 +302,8 @@
     // 1. Accounts
     google.script.run.withSuccessHandler(data => {
       globalAccounts = data.accounts;
-      const balEl = document.getElementById('dash-total-balance');
-      if (balEl) balEl.innerText = `${data.totalBalance.toFixed(2)} MT`;
+      actualTotalBalance = Number(data.totalBalance) || 0;
+      updateBalanceDisplay();
       populateAccountDropdowns();
       renderAccountsList(data.accounts);
     }).getAccountsOverview();
@@ -227,8 +312,13 @@
     google.script.run.withSuccessHandler(summary => {
       const incEl = document.getElementById('dash-total-income');
       const expEl = document.getElementById('dash-total-expense');
-      if (incEl) incEl.innerText = `${summary.monthlyIncome.toFixed(2)} MT`;
-      if (expEl) expEl.innerText = `${summary.monthlyExpense.toFixed(2)} MT`;
+      const monthlyIncome = Number(summary.monthlyIncome) || 0;
+      const monthlyExpense = Number(summary.monthlyExpense) || 0;
+
+      if (incEl) incEl.innerText = `${monthlyIncome.toFixed(2)} MT`;
+      if (expEl) expEl.innerText = `${monthlyExpense.toFixed(2)} MT`;
+
+      updateNetPercentageBadge(monthlyIncome, monthlyExpense);
     }).getCurrentMonthSummary();
 
     // 3. Categories
@@ -249,11 +339,13 @@
     if (google && google.script && google.script.run) {
       google.script.run
         .withSuccessHandler(chartData => {
-          renderCategoryChart(chartData);
+          rawCategoryChartData = chartData || { labels: [], values: [] };
+          renderCategoryChart(rawCategoryChartData);
         })
         .withFailureHandler(err => {
           console.error("Error fetching category expense breakdown:", err);
-          renderCategoryChart({ labels: [], values: [] });
+          rawCategoryChartData = { labels: [], values: [] };
+          renderCategoryChart(rawCategoryChartData);
         })
         .getCategoryExpenseBreakdown();
     }
@@ -331,7 +423,6 @@
   }
 
   function populateAccountDropdowns() {
-    // Populate create & edit transaction dropdowns
     const txSelects = [
       document.getElementById('tx-account'),
       document.getElementById('tx-target-account'),
@@ -352,7 +443,6 @@
       if (currentVal) select.value = currentVal;
     });
 
-    // Populate Extrato Account Filter with "ALL" option
     const stmtAccSelect = document.getElementById('stmt-account');
     if (stmtAccSelect) {
       const currentVal = stmtAccSelect.value || 'ALL';
@@ -370,7 +460,6 @@
   function populateCategoryDropdowns() {
     const selects = [document.getElementById('tx-category'), document.getElementById('edit-tx-category')];
 
-    // Populate transaction forms
     selects.forEach(select => {
       if (!select) return;
       const currentVal = select.value;
@@ -384,7 +473,6 @@
       if (currentVal) select.value = currentVal;
     });
 
-    // Populate Extrato Category Filter with "ALL" option
     const stmtCatSelect = document.getElementById('stmt-category');
     if (stmtCatSelect) {
       const currentVal = stmtCatSelect.value || 'ALL';
@@ -440,22 +528,18 @@
 
     document.getElementById('edit-tx-id').value = tx.id;
 
-    // Type
     const txType = tx.type || (tx.category === 'Transferência' ? 'Transfer' : (tx.amount > 0 ? 'Income' : 'Expense'));
     selectEditTxType(txType);
 
-    // Account
     populateAccountDropdowns();
     if (tx.accountId) {
       document.getElementById('edit-tx-account').value = tx.accountId;
     }
 
-    // Target Account (if transfer)
     if (tx.targetAccountId) {
       document.getElementById('edit-tx-target-account').value = tx.targetAccountId;
     }
 
-    // Debt toggle & Debt selector
     const isDebt = Boolean(tx.debtId) || tx.category === 'Amortizar Divida';
     const debtCheckbox = document.getElementById('edit-tx-is-debt');
     if (debtCheckbox) {
@@ -463,19 +547,14 @@
     }
     toggleEditDebtMode(tx.debtId);
 
-    // Date
     document.getElementById('edit-tx-date').value = tx.date || new Date().toISOString().split('T')[0];
 
-    // Category
     populateCategoryDropdowns();
     if (tx.category) {
       document.getElementById('edit-tx-category').value = tx.category;
     }
 
-    // Amount (positive)
     document.getElementById('edit-tx-amount').value = Math.abs(tx.amount);
-
-    // Description
     document.getElementById('edit-tx-desc').value = tx.description || '';
 
     openModal('modal-edit-tx');
@@ -752,13 +831,37 @@
     });
   }
 
+  /* CATEGORY CHART & TOP 5 BREAKDOWN */
+  function toggleCategoryLegend() {
+    isCategoriesExpanded = !isCategoriesExpanded;
+    renderLegendItems();
+  }
+
+  // Color palette matching the reference image (forest green, medium sage, mint green, pale sage, etc.)
+  const referencePalette = [
+    '#1e4620', // deep forest green
+    '#2e6b36', // hunter green
+    '#4b8b54', // medium green
+    '#7bb682', // mint green
+    '#a8d5ad', // soft pale green
+    '#5c7f67', // muted spruce
+    '#3c5a44', // dark sage
+    '#8eb496', // light moss
+    '#446f55', // moss green
+    '#a2b9a7'  // soft grey-green
+  ];
+
+  let sortedCategoryItems = [];
+  let chartTotalSpent = 0;
+
   function renderCategoryChart(data) {
     const canvas = document.getElementById('categoryChart');
     const overlay = document.getElementById('chart-center-overlay');
     const amountEl = document.getElementById('chart-center-amount');
+    const toggleBtn = document.getElementById('btn-toggle-categories');
     const legendEl = document.getElementById('categoryChartLegend');
-    if (!canvas) return;
 
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
     if (chartInstance) {
@@ -767,6 +870,7 @@
     }
 
     if (legendEl) legendEl.innerHTML = '';
+    if (toggleBtn) toggleBtn.style.display = 'none';
 
     if (!data || !data.labels || data.labels.length === 0 || !data.values || data.values.length === 0) {
       if (overlay) overlay.style.display = 'none';
@@ -779,34 +883,38 @@
       return;
     }
 
-    const totalSpent = data.values.reduce((sum, v) => sum + (Number(v) || 0), 0);
+    chartTotalSpent = data.values.reduce((sum, v) => sum + (Number(v) || 0), 0);
 
-    // Color palette matching the reference image (forest green, mint green, sage, dark spruce, slate/taupe)
-    const referenceColors = [
-      '#1e4620', // deep forest green
-      '#437a4a', // medium green
-      '#8bc38f', // light mint green
-      '#b2d8b5', // pale sage green
-      '#a2b9a7', // soft grey-green
-      '#607d6b', // slate spruce
-      '#355e3b', // hunter green
-      '#809b82'  // muted sage
-    ];
+    // Combine label and value and sort descending by amount
+    sortedCategoryItems = data.labels.map((label, i) => {
+      return {
+        label: label,
+        value: Number(data.values[i]) || 0
+      };
+    }).sort((a, b) => b.value - a.value);
 
-    const backgroundColors = data.labels.map((_, i) => referenceColors[i % referenceColors.length]);
+    // Assign consistent palette colors
+    sortedCategoryItems.forEach((item, index) => {
+      item.color = referencePalette[index % referencePalette.length];
+    });
 
     if (overlay && amountEl) {
-      amountEl.innerText = `${totalSpent.toFixed(2)} MT`;
+      amountEl.innerText = `${chartTotalSpent.toFixed(2)} MT`;
       overlay.style.display = 'block';
     }
+
+    // Chart keeps ALL slices as requested
+    const chartLabels = sortedCategoryItems.map(item => item.label);
+    const chartValues = sortedCategoryItems.map(item => item.value);
+    const chartColors = sortedCategoryItems.map(item => item.color);
 
     chartInstance = new Chart(ctx, {
       type: 'doughnut',
       data: {
-        labels: data.labels,
+        labels: chartLabels,
         datasets: [{
-          data: data.values,
-          backgroundColor: backgroundColors,
+          data: chartValues,
+          backgroundColor: chartColors,
           borderWidth: 2,
           borderColor: '#ffffff',
           hoverOffset: 4
@@ -818,13 +926,13 @@
         cutout: '72%',
         plugins: {
           legend: {
-            display: false // We use our custom matching grid legend below
+            display: false
           },
           tooltip: {
             callbacks: {
               label: function(context) {
                 const val = context.parsed || 0;
-                const pct = totalSpent > 0 ? ((val / totalSpent) * 100).toFixed(1) : 0;
+                const pct = chartTotalSpent > 0 ? ((val / chartTotalSpent) * 100).toFixed(1) : 0;
                 return ` ${context.label}: ${val.toFixed(2)} MT (${pct}%)`;
               }
             }
@@ -833,25 +941,50 @@
       }
     });
 
-    // Render custom legend matching reference image
-    if (legendEl) {
-      legendEl.innerHTML = '';
-      data.labels.forEach((label, idx) => {
-        const val = Number(data.values[idx]) || 0;
-        const pct = totalSpent > 0 ? Math.round((val / totalSpent) * 100) : 0;
-        const color = backgroundColors[idx];
+    renderLegendItems();
+  }
 
-        const item = document.createElement('div');
-        item.className = 'legend-item';
-        item.innerHTML = `
-          <div class="legend-item-left" title="${label}">
-            <span class="legend-dot" style="background-color: ${color};"></span>
-            <span class="legend-label">${label}</span>
-          </div>
-          <span class="legend-percent">${pct}%</span>
-        `;
-        legendEl.appendChild(item);
-      });
+  function renderLegendItems() {
+    const legendEl = document.getElementById('categoryChartLegend');
+    const toggleBtn = document.getElementById('btn-toggle-categories');
+    const toggleText = document.getElementById('toggle-categories-text');
+    const toggleIcon = document.getElementById('toggle-categories-icon');
+
+    if (!legendEl) return;
+    legendEl.innerHTML = '';
+
+    const hasMoreThan5 = sortedCategoryItems.length > 5;
+    const itemsToDisplay = (hasMoreThan5 && !isCategoriesExpanded)
+      ? sortedCategoryItems.slice(0, 5)
+      : sortedCategoryItems;
+
+    itemsToDisplay.forEach(item => {
+      const pct = chartTotalSpent > 0 ? Math.round((item.value / chartTotalSpent) * 100) : 0;
+      const el = document.createElement('div');
+      el.className = 'legend-item';
+      el.innerHTML = `
+        <div class="legend-item-left" title="${item.label}">
+          <span class="legend-dot" style="background-color: ${item.color};"></span>
+          <span class="legend-label">${item.label}</span>
+        </div>
+        <span class="legend-percent">${pct}%</span>
+      `;
+      legendEl.appendChild(el);
+    });
+
+    if (toggleBtn) {
+      if (hasMoreThan5) {
+        toggleBtn.style.display = 'inline-flex';
+        if (isCategoriesExpanded) {
+          if (toggleText) toggleText.innerText = 'Ver menos';
+          if (toggleIcon) toggleIcon.style.transform = 'rotate(180deg)';
+        } else {
+          if (toggleText) toggleText.innerText = `Ver todos (${sortedCategoryItems.length})`;
+          if (toggleIcon) toggleIcon.style.transform = 'rotate(0deg)';
+        }
+      } else {
+        toggleBtn.style.display = 'none';
+      }
     }
   }
 </script>
