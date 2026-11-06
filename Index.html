@@ -17,28 +17,129 @@
   <div class="container">
     <!-- VIEW: HOME (Painel Geral) -->
     <div id="view-home" class="view active">
-      <!-- Balance Card -->
-      <div class="card">
-        <div class="balance-label">Saldo Total Disponível</div>
-        <div id="dash-total-balance" class="balance-val">0.00 MT</div>
-
-        <div class="stats-grid">
-          <div class="stat-box income">
-            <span class="balance-label">Receitas (Mês)</span>
-            <div id="dash-total-income" class="val">0.00 MT</div>
+      <!-- Dark Forest Green Top Card matching reference image -->
+      <div class="dark-balance-card">
+        <!-- Top Row: Badge with Eye & Trend icon -->
+        <div class="dark-card-top-row">
+          <div class="balance-pill-badge">
+            <span class="balance-pill-icon">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+              </svg>
+            </span>
+            <span>Saldo Total</span>
+            <button type="button" class="balance-eye-btn" id="btn-toggle-balance" onclick="toggleBalanceVisibility()" title="Ocultar/Mostrar saldo">
+              <!-- Eye open SVG -->
+              <svg id="eye-icon-open" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              <!-- Eye closed SVG -->
+              <svg id="eye-icon-closed" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+              </svg>
+            </button>
           </div>
-          <div class="stat-box expense">
-            <span class="balance-label">Despesas (Mês)</span>
-            <div id="dash-total-expense" class="val">0.00 MT</div>
+
+          <div class="dark-card-right-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="20" x2="18" y2="10"></line>
+              <line x1="12" y1="20" x2="12" y2="4"></line>
+              <line x1="6" y1="20" x2="6" y2="14"></line>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Mid Row: Balance Amount & Net Percentage Badge -->
+        <div class="dark-card-mid-row">
+          <div class="dark-card-balance" id="dash-total-balance">0.00 MT</div>
+          <div class="dark-card-badge-container">
+            <span class="net-percent-badge" id="dash-net-badge">
+              <span id="dash-net-badge-icon">▲</span>
+              <span id="dash-net-badge-val">0.0%</span>
+            </span>
+            <span class="net-percent-subtext" id="dash-net-badge-label">Receitas vs Despesas</span>
+          </div>
+        </div>
+
+        <!-- Embedded Stats: Receitas & Despesas do Mês Actual -->
+        <div class="dark-card-embedded-stats">
+          <div class="dark-stat-box">
+            <span class="dark-stat-label">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6ee7b7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="19" x2="12" y2="5"></line>
+                <polyline points="5 12 12 5 19 12"></polyline>
+              </svg>
+              Receitas (Mês)
+            </span>
+            <div id="dash-total-income" class="dark-stat-val income">0.00 MT</div>
+          </div>
+
+          <div class="dark-stat-box">
+            <span class="dark-stat-label">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fca5a5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <polyline points="19 12 12 19 5 12"></polyline>
+              </svg>
+              Despesas (Mês)
+            </span>
+            <div id="dash-total-expense" class="dark-stat-val expense">0.00 MT</div>
           </div>
         </div>
       </div>
 
+      <!-- Quick Action Buttons under the card matching reference image -->
+      <div class="quick-actions-grid">
+        <button type="button" class="quick-action-item" onclick="scrollToTransactionForm()">
+          <div class="quick-action-btn">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </div>
+          <span class="quick-action-label">Nova</span>
+        </button>
+
+        <button type="button" class="quick-action-item" onclick="switchTab('transactions', 'Histórico de Transações')">
+          <div class="quick-action-btn">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline>
+              <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>
+            </svg>
+          </div>
+          <span class="quick-action-label">Histórico</span>
+        </button>
+
+        <button type="button" class="quick-action-item" onclick="switchTab('statement', 'Extrato Bancário')">
+          <div class="quick-action-btn">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+          </div>
+          <span class="quick-action-label">Extrato</span>
+        </button>
+
+        <button type="button" class="quick-action-item" onclick="switchTab('accounts', 'Contas e Dívidas')">
+          <div class="quick-action-btn">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </div>
+          <span class="quick-action-label">Gestão</span>
+        </button>
+      </div>
+
       <!-- Category Chart Card -->
-      <div class="card">
+      <div class="card" id="card-category-chart">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <h3 style="font-size: 1rem; margin: 0; font-weight: 700;">Despesas por Categoria</h3>
-          <span id="chart-month-badge" style="font-size: 0.75rem; background: #e6f4ea; color: #137333; padding: 2px 8px; border-radius: 12px; font-weight: 600;">Este Mês</span>
+          <h3 style="font-size: 1.05rem; margin: 0; font-weight: 700;">Despesas por Categoria</h3>
+          <span id="chart-month-badge" style="font-size: 0.75rem; background: #e6f4ea; color: #1e4620; padding: 3px 10px; border-radius: 12px; font-weight: 600;">Este Mês</span>
         </div>
         <div class="chart-container-wrapper">
           <canvas id="categoryChart" width="220" height="220"></canvas>
@@ -48,11 +149,17 @@
           </div>
         </div>
         <div id="categoryChartLegend" class="custom-chart-legend"></div>
+        <button type="button" id="btn-toggle-categories" class="legend-toggle-btn" style="display: none;" onclick="toggleCategoryLegend()">
+          <span id="toggle-categories-text">Ver todos</span>
+          <svg id="toggle-categories-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
       </div>
 
       <!-- Quick Add Transaction Card -->
-      <div class="card">
-        <h3 style="font-size: 1rem; margin-bottom: 12px;">Registar Transação</h3>
+      <div class="card" id="card-add-tx">
+        <h3 style="font-size: 1.05rem; margin-bottom: 14px; font-weight: 700;">Registar Transação</h3>
         <form id="form-tx" onsubmit="submitTransaction(event)">
           <!-- Transaction Type Selector -->
           <div class="form-group">
@@ -125,7 +232,7 @@
       <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
           <h2 style="font-size: 1.25rem; font-weight: 700;">Histórico de Transações</h2>
-          <button type="button" class="btn-sm" style="background: #4f46e5; padding: 6px 14px; border-radius: 8px; font-weight: 600;" onclick="switchTab('home', 'Painel Geral')">+ Nova</button>
+          <button type="button" class="btn-sm" onclick="switchTab('home', 'Painel Geral'); scrollToTransactionForm();">+ Nova</button>
         </div>
 
         <div class="table-container">
@@ -151,7 +258,7 @@
     <!-- VIEW: STATEMENT (Extrato Bancário) -->
     <div id="view-statement" class="view">
       <div class="card">
-        <h3 style="font-size: 1rem; margin-bottom: 12px;">Filtros do Extrato</h3>
+        <h3 style="font-size: 1.05rem; margin-bottom: 14px; font-weight: 700;">Filtros do Extrato</h3>
         <form onsubmit="fetchStatement(event)">
           <div class="form-group">
             <label>Conta</label>
@@ -197,7 +304,7 @@
       <div id="statement-results" style="display: none;">
         <div class="card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <h3 style="font-size: 1rem; margin: 0;">Resumo do Período</h3>
+            <h3 style="font-size: 1.05rem; margin: 0; font-weight: 700;">Resumo do Período</h3>
             <button type="button" class="btn-download" onclick="exportStatementToExcel()">📥 Exportar Excel</button>
           </div>
           <div class="statement-summary">
@@ -242,7 +349,7 @@
       <!-- Accounts Card -->
       <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h3 style="font-size: 1rem; margin: 0;">Contas Bancárias / Carteiras</h3>
+          <h3 style="font-size: 1.05rem; margin: 0; font-weight: 700;">Contas Bancárias / Carteiras</h3>
           <button type="button" class="btn-sm" onclick="openModal('modal-add-acc')">+ Nova Conta</button>
         </div>
         <div id="accounts-list"></div>
@@ -251,7 +358,7 @@
       <!-- Expense Categories Card -->
       <div class="card despesas">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h3 style="font-size: 1rem; margin: 0;">Categorias de Despesas</h3>
+          <h3 style="font-size: 1.05rem; margin: 0; font-weight: 700;">Categorias de Despesas</h3>
           <button type="button" class="btn-sm" onclick="openAddCategoryModalWithType('Expense')">+ Nova Despesa</button>
         </div>
         <div id="expense-categories-list"></div>
@@ -260,7 +367,7 @@
       <!-- Income Categories Card -->
       <div class="card receitas">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h3 style="font-size: 1rem; margin: 0;">Categorias de Receitas</h3>
+          <h3 style="font-size: 1.05rem; margin: 0; font-weight: 700;">Categorias de Receitas</h3>
           <button type="button" class="btn-sm" onclick="openAddCategoryModalWithType('Income')">+ Nova Receita</button>
         </div>
         <div id="income-categories-list"></div>
@@ -269,7 +376,7 @@
       <!-- Debts Card -->
       <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h3 style="font-size: 1rem; margin: 0;">Dívidas e Empréstimos</h3>
+          <h3 style="font-size: 1.05rem; margin: 0; font-weight: 700;">Dívidas e Empréstimos</h3>
           <button type="button" class="btn-sm" onclick="openModal('modal-add-debt')">+ Nova Dívida</button>
         </div>
         <div id="debts-list"></div>
@@ -442,7 +549,7 @@
         </div>
 
         <div style="display: flex; gap: 10px; margin-top: 20px;">
-          <button type="submit" class="btn" style="background: #4f46e5;">Atualizar</button>
+          <button type="submit" class="btn" style="background: #1e4620;">Atualizar</button>
           <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit-tx')">Cancelar</button>
         </div>
       </form>
