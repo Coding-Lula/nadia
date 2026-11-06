@@ -14,6 +14,50 @@ function generateId(prefix) {
   return (prefix || 'ID') + '_' + Utilities.getUuid().substring(0, 8).toUpperCase();
 }
 
+/**
+ * Calculates current month's expenses aggregated by category for the chart.
+ * Defined in Code.js so it is always accessible from google.script.run regardless of file load order.
+ */
+function getCategoryExpenseBreakdown() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Transactions');
+  if (!sheet) return { labels: [], values: [] };
+
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return { labels: [], values: [] };
+
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  const categoryTotals = {};
+
+  // Columns: [0: ID, 1: Date, 2: Account, 3: Type, 4: Category, 5: Amount, 6: Description, 7: TargetAccount, 8: DebtId]
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    if (!row[1]) continue;
+    const txDate = new Date(row[1]);
+    const type = row[3];
+    const category = row[4] || 'Outros';
+    const amount = parseFloat(row[5]) || 0;
+
+    // Filter for Expenses in the current month
+    if (
+      txDate.getMonth() === currentMonth &&
+      txDate.getFullYear() === currentYear &&
+      (type === 'Expense' || amount < 0)
+    ) {
+      const positiveAmt = Math.abs(amount);
+      categoryTotals[category] = (categoryTotals[category] || 0) + positiveAmt;
+    }
+  }
+
+  return {
+    labels: Object.keys(categoryTotals),
+    values: Object.values(categoryTotals)
+  };
+}
+
 // Helper: Get Spreadsheet dynamically from Script Properties or active file
 function getSpreadsheet() {
   var id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');

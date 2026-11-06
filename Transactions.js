@@ -5,10 +5,12 @@ function addTransaction(txPayload) {
   
   const txId = generateId('TX');
   const date = txPayload.date ? new Date(txPayload.date) : new Date();
-  const { accountId, type, category, amount, description, targetAccountId } = txPayload;
+  const { accountId, type, category, amount, description, targetAccountId, isDebt, debtId } = txPayload;
   const numAmount = Number(amount);
+  const finalDebtId = isDebt && debtId ? debtId : '';
   
-  txSheet.appendRow([txId, date, accountId, type, category, numAmount, description, targetAccountId || '']);
+  // Columns: [0: ID, 1: Date, 2: Account_ID, 3: Type, 4: Category, 5: Amount, 6: Description, 7: Target_Account_ID, 8: Debt_ID]
+  txSheet.appendRow([txId, date, accountId, type, category, numAmount, description, targetAccountId || '', finalDebtId]);
   
   // Sync Accounts Sheet balances
   if (accSheet) {
@@ -16,6 +18,11 @@ function addTransaction(txPayload) {
     if (type === 'Transfer' && targetAccountId) {
       updateAccountBalance(accSheet, targetAccountId, 'Income', numAmount, false);
     }
+  }
+
+  // Sync Debt balance if amortization
+  if (finalDebtId) {
+    recordDebtPayment(finalDebtId, numAmount);
   }
   
   return { status: 'SUCCESS' };
@@ -106,6 +113,7 @@ function getRecentTransactions() {
   return rows.map(row => {
     const accId = row[2];
     const targetAccId = row[7] || '';
+    const debtId = row[8] || '';
     return {
       id: row[0],
       date: row[1] ? Utilities.formatDate(new Date(row[1]), ss.getSpreadsheetTimeZone(), "yyyy-MM-dd") : '',
@@ -116,7 +124,8 @@ function getRecentTransactions() {
       amount: parseFloat(row[5]) || 0,
       description: row[6] || '',
       targetAccountId: targetAccId,
-      targetAccountName: accMap[targetAccId] || targetAccId || ''
+      targetAccountName: accMap[targetAccId] || targetAccId || '',
+      debtId: debtId
     };
   }).reverse();
 }
@@ -137,12 +146,18 @@ function deleteTransaction(txId) {
       const oldType = data[i][3];
       const oldAmount = Number(data[i][5]) || 0;
       const oldTargetAccountId = data[i][7] || '';
+      const oldDebtId = data[i][8] || '';
 
       if (accSheet) {
         revertAccountBalance(accSheet, oldAccountId, oldType, oldAmount, true);
         if (oldType === 'Transfer' && oldTargetAccountId) {
           revertAccountBalance(accSheet, oldTargetAccountId, 'Income', oldAmount, false);
         }
+      }
+
+      // Revert debt payment if was amortized
+      if (oldDebtId) {
+        revertDebtPayment(oldDebtId, oldAmount);
       }
 
       sheet.deleteRow(i + 1);
@@ -163,11 +178,12 @@ function updateTransaction(payload) {
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (data[i][0].toString() === payload.id.toString()) {
-      // Row structure: [0: ID, 1: Date, 2: Account_ID, 3: Type, 4: Category, 5: Amount, 6: Description, 7: Target_Account_ID]
+      // Row structure: [0: ID, 1: Date, 2: Account_ID, 3: Type, 4: Category, 5: Amount, 6: Description, 7: Target_Account_ID, 8: Debt_ID]
       const oldAccountId = data[i][2];
       const oldType = data[i][3];
       const oldAmount = Number(data[i][5]) || 0;
       const oldTargetAccountId = data[i][7] || '';
+      const oldDebtId = data[i][8] || '';
 
       // 1. Revert old balance impact
       if (accSheet) {
@@ -175,6 +191,11 @@ function updateTransaction(payload) {
         if (oldType === 'Transfer' && oldTargetAccountId) {
           revertAccountBalance(accSheet, oldTargetAccountId, 'Income', oldAmount, false);
         }
+      }
+
+      // Revert old debt payment if applicable
+      if (oldDebtId) {
+        revertDebtPayment(oldDebtId, oldAmount);
       }
 
       // 2. Parse new values
@@ -185,6 +206,7 @@ function updateTransaction(payload) {
       const newAmount = payload.amount !== undefined ? parseFloat(payload.amount) : oldAmount;
       const newDescription = payload.description !== undefined ? payload.description : data[i][6];
       const newTargetAccountId = (newType === 'Transfer' && payload.targetAccountId) ? payload.targetAccountId : '';
+      const newDebtId = (newType !== 'Transfer' && payload.isDebt && payload.debtId) ? payload.debtId : '';
 
       // 3. Update spreadsheet row
       sheet.getRange(i + 1, 2).setValue(newDate);
@@ -194,6 +216,7 @@ function updateTransaction(payload) {
       sheet.getRange(i + 1, 6).setValue(newAmount);
       sheet.getRange(i + 1, 7).setValue(newDescription);
       sheet.getRange(i + 1, 8).setValue(newTargetAccountId);
+      sheet.getRange(i + 1, 9).setValue(newDebtId);
 
       // 4. Apply new balance impact
       if (accSheet) {
@@ -201,6 +224,11 @@ function updateTransaction(payload) {
         if (newType === 'Transfer' && newTargetAccountId) {
           updateAccountBalance(accSheet, newTargetAccountId, 'Income', newAmount, false);
         }
+      }
+
+      // Apply new debt payment if applicable
+      if (newDebtId) {
+        recordDebtPayment(newDebtId, newAmount);
       }
 
       break;

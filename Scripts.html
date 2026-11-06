@@ -150,14 +150,66 @@
     if (type === 'Transfer') btnTrf.classList.add('active-transfer');
 
     const targetAccGroup = document.getElementById('edit-target-acc-group');
-    const catGroup = document.getElementById('edit-cat-group');
+    const debtToggleGroup = document.getElementById('edit-debt-toggle-group');
+
+    if (targetAccGroup) targetAccGroup.style.display = (type === 'Transfer') ? 'block' : 'none';
+    if (debtToggleGroup) debtToggleGroup.style.display = (type === 'Transfer') ? 'none' : 'block';
 
     if (type === 'Transfer') {
-      if (targetAccGroup) targetAccGroup.style.display = 'block';
-      if (catGroup) catGroup.style.display = 'none';
+      document.getElementById('edit-cat-group').style.display = 'none';
+      document.getElementById('edit-debt-group').style.display = 'none';
+      const debtCheckbox = document.getElementById('edit-tx-is-debt');
+      if (debtCheckbox) debtCheckbox.checked = false;
     } else {
-      if (targetAccGroup) targetAccGroup.style.display = 'none';
-      if (catGroup) catGroup.style.display = 'block';
+      toggleEditDebtMode();
+    }
+  }
+
+  function toggleEditDebtMode(preserveDebtId) {
+    const isDebt = document.getElementById('edit-tx-is-debt').checked;
+    const type = document.getElementById('edit-tx-type').value;
+
+    if (type === 'Transfer') return;
+
+    if (isDebt) {
+      document.getElementById('edit-debt-group').style.display = 'block';
+      document.getElementById('edit-cat-group').style.display = 'none';
+      populateEditDebtDropdown(preserveDebtId);
+    } else {
+      document.getElementById('edit-debt-group').style.display = 'none';
+      document.getElementById('edit-cat-group').style.display = 'block';
+    }
+  }
+
+  function populateEditDebtDropdown(selectedDebtId) {
+    const debtSelect = document.getElementById('edit-tx-debt');
+    if (!debtSelect) return;
+    debtSelect.innerHTML = '';
+
+    const type = document.getElementById('edit-tx-type').value;
+    const targetType = (type === 'Income') ? 'Lend' : 'Borrow';
+
+    // Filter debts matching targetType. Also allow the currently assigned debt even if remaining is 0
+    const filteredDebts = globalDebts.filter(d => d.type === targetType && ((d.totalAmount - d.paidAmount) > 0 || d.id === selectedDebtId));
+
+    if (filteredDebts.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.innerText = 'Nenhuma dívida encontrada';
+      debtSelect.appendChild(opt);
+      return;
+    }
+
+    filteredDebts.forEach(d => {
+      const remaining = d.totalAmount - d.paidAmount;
+      const opt = document.createElement('option');
+      opt.value = d.id;
+      opt.innerText = `${d.person} (Restante: ${remaining.toFixed(2)} MT)`;
+      debtSelect.appendChild(opt);
+    });
+
+    if (selectedDebtId) {
+      debtSelect.value = selectedDebtId;
     }
   }
 
@@ -194,9 +246,17 @@
     }).getDebts();
 
     // 5. Summary Category Chart
-    google.script.run.withSuccessHandler(chartData => {
-      renderCategoryChart(chartData);
-    }).getCategoryExpenseBreakdown();
+    if (google && google.script && google.script.run) {
+      google.script.run
+        .withSuccessHandler(chartData => {
+          renderCategoryChart(chartData);
+        })
+        .withFailureHandler(err => {
+          console.error("Error fetching category expense breakdown:", err);
+          renderCategoryChart({ labels: [], values: [] });
+        })
+        .getCategoryExpenseBreakdown();
+    }
   }
 
   function loadGlobalTransactions() {
@@ -395,6 +455,14 @@
       document.getElementById('edit-tx-target-account').value = tx.targetAccountId;
     }
 
+    // Debt toggle & Debt selector
+    const isDebt = Boolean(tx.debtId) || tx.category === 'Amortizar Divida';
+    const debtCheckbox = document.getElementById('edit-tx-is-debt');
+    if (debtCheckbox) {
+      debtCheckbox.checked = isDebt;
+    }
+    toggleEditDebtMode(tx.debtId);
+
     // Date
     document.getElementById('edit-tx-date').value = tx.date || new Date().toISOString().split('T')[0];
 
@@ -415,6 +483,7 @@
 
   function submitEditTransaction(e) {
     e.preventDefault();
+    const isDebt = document.getElementById('edit-tx-is-debt') ? document.getElementById('edit-tx-is-debt').checked : false;
     const type = document.getElementById('edit-tx-type').value;
 
     const payload = {
@@ -423,10 +492,17 @@
       accountId: document.getElementById('edit-tx-account').value,
       targetAccountId: type === 'Transfer' ? document.getElementById('edit-tx-target-account').value : '',
       date: document.getElementById('edit-tx-date').value,
-      category: type === 'Transfer' ? 'Transferência' : document.getElementById('edit-tx-category').value,
+      isDebt: isDebt,
+      debtId: isDebt ? document.getElementById('edit-tx-debt').value : null,
+      category: isDebt ? 'Amortizar Divida' : (type === 'Transfer' ? 'Transferência' : document.getElementById('edit-tx-category').value),
       amount: document.getElementById('edit-tx-amount').value,
       description: document.getElementById('edit-tx-desc').value
     };
+
+    if (isDebt && !payload.debtId) {
+      alert('Por favor, selecione uma dívida válida.');
+      return;
+    }
 
     google.script.run.withSuccessHandler(() => {
       closeModal('modal-edit-tx');
@@ -678,21 +754,50 @@
 
   function renderCategoryChart(data) {
     const canvas = document.getElementById('categoryChart');
+    const overlay = document.getElementById('chart-center-overlay');
+    const amountEl = document.getElementById('chart-center-amount');
+    const legendEl = document.getElementById('categoryChartLegend');
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
 
     if (chartInstance) {
       chartInstance.destroy();
+      chartInstance = null;
     }
 
-    if (!data || !data.labels || data.labels.length === 0) {
+    if (legendEl) legendEl.innerHTML = '';
+
+    if (!data || !data.labels || data.labels.length === 0 || !data.values || data.values.length === 0) {
+      if (overlay) overlay.style.display = 'none';
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.font = '14px sans-serif';
-      ctx.fillStyle = '#888888';
+      ctx.font = '13px sans-serif';
+      ctx.fillStyle = '#9ca3af';
       ctx.textAlign = 'center';
-      ctx.fillText('Sem despesas registadas este mês.', canvas.width / 2, canvas.height / 2);
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Sem despesas este mês', canvas.width / 2, canvas.height / 2);
       return;
+    }
+
+    const totalSpent = data.values.reduce((sum, v) => sum + (Number(v) || 0), 0);
+
+    // Color palette matching the reference image (forest green, mint green, sage, dark spruce, slate/taupe)
+    const referenceColors = [
+      '#1e4620', // deep forest green
+      '#437a4a', // medium green
+      '#8bc38f', // light mint green
+      '#b2d8b5', // pale sage green
+      '#a2b9a7', // soft grey-green
+      '#607d6b', // slate spruce
+      '#355e3b', // hunter green
+      '#809b82'  // muted sage
+    ];
+
+    const backgroundColors = data.labels.map((_, i) => referenceColors[i % referenceColors.length]);
+
+    if (overlay && amountEl) {
+      amountEl.innerText = `${totalSpent.toFixed(2)} MT`;
+      overlay.style.display = 'block';
     }
 
     chartInstance = new Chart(ctx, {
@@ -701,23 +806,52 @@
         labels: data.labels,
         datasets: [{
           data: data.values,
-          backgroundColor: [
-            '#f05252', '#3b82f6', '#10b981', '#f59e0b',
-            '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'
-          ],
-          borderWidth: 1
+          backgroundColor: backgroundColors,
+          borderWidth: 2,
+          borderColor: '#ffffff',
+          hoverOffset: 4
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        cutout: '72%',
         plugins: {
           legend: {
-            position: 'bottom',
-            labels: { boxWidth: 12, font: { size: 11 } }
+            display: false // We use our custom matching grid legend below
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const val = context.parsed || 0;
+                const pct = totalSpent > 0 ? ((val / totalSpent) * 100).toFixed(1) : 0;
+                return ` ${context.label}: ${val.toFixed(2)} MT (${pct}%)`;
+              }
+            }
           }
         }
       }
     });
+
+    // Render custom legend matching reference image
+    if (legendEl) {
+      legendEl.innerHTML = '';
+      data.labels.forEach((label, idx) => {
+        const val = Number(data.values[idx]) || 0;
+        const pct = totalSpent > 0 ? Math.round((val / totalSpent) * 100) : 0;
+        const color = backgroundColors[idx];
+
+        const item = document.createElement('div');
+        item.className = 'legend-item';
+        item.innerHTML = `
+          <div class="legend-item-left" title="${label}">
+            <span class="legend-dot" style="background-color: ${color};"></span>
+            <span class="legend-label">${label}</span>
+          </div>
+          <span class="legend-percent">${pct}%</span>
+        `;
+        legendEl.appendChild(item);
+      });
+    }
   }
 </script>
