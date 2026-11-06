@@ -1,367 +1,801 @@
 <!DOCTYPE html>
-<html lang="pt">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gestão Financeira</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <?!= include('CSS'); ?>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <style>
+    :root {
+      --primary: #000000;
+      --success: #00c897;
+      --danger: #ff4d4d;
+      --bg-gray: #f8f9fa;
+      --border: #edf2f7;
+      --text-muted: #718096;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body { 
+      overflow-x: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+      margin: 0; 
+      padding: 0;
+      background: #f1f3f5; 
+      color: #1a202c; 
+      min-height: 100dvh;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .app-container { 
+      width: 100%;
+      max-width: 100%;
+      margin: 0; 
+      background: #ffffff; 
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Navigation Tabs */
+    .tabs-nav {
+      display: flex;
+      padding: 15px 20px;
+      gap: 10px;
+      background: #ffffff;
+      border-bottom: 1px solid var(--border);
+    }
+    .tab-btn {
+      border: none;
+      background: none;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 8px 14px;
+      border-radius: 20px;
+      transition: all 0.2s ease;
+    }
+    .tab-btn.active {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .tab-content {
+      display: none;
+      padding: 20px;
+      flex-grow: 1;
+    }
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Header Card */
+    .overview-card {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+    }
+    .overview-title {
+      font-size: 14px;
+      color: #4a5568;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+    .overview-amount {
+      font-size: 38px;
+      font-weight: 700;
+      letter-spacing: -1px;
+      margin-bottom: 15px;
+    }
+    .progress-bar-container {
+      background: var(--bg-gray);
+      border-radius: 8px;
+      height: 10px;
+      width: 100%;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .progress-bar-fill {
+      background: var(--success);
+      height: 100%;
+      width: 0%;
+      transition: width 0.5s ease, background-color 0.3s ease;
+    }
+    .overview-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    
+    .full-bleed {
+      width: 100%;
+      padding-left: 20px;
+      padding-right: 20px;
+      box-sizing: border-box;
+      background: #ffffff;
+    }
+
+    /* Category List */
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .section-header h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .category-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .category-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .category-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    
+    /* Confirmation Modal Styling */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .modal-card {
+      background: #ffffff;
+      width: 90%;
+      max-width: 360px;
+      border-radius: 20px;
+      padding: 24px;
+      text-align: center;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+      transform: scale(0.9);
+      transition: transform 0.25s ease;
+    }
+    .modal-overlay.active .modal-card {
+      transform: scale(1);
+    }
+    .modal-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+    .modal-title {
+      margin: 0 0 8px 0;
+      font-size: 18px;
+      font-weight: 700;
+      color: #1a202c;
+    }
+    .modal-text {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin: 0 0 20px 0;
+      line-height: 1.4;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .modal-btn {
+      flex: 1;
+      padding: 10px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    .modal-btn-cancel {
+      background: var(--bg-gray);
+      color: #1a202c;
+    }
+    .modal-btn-cancel:hover {
+      background: #e2e8f0;
+    }
+    .modal-btn-danger {
+      background: var(--danger);
+      color: #ffffff;
+    }
+    .modal-btn-danger:hover {
+      background: #e53e3e;
+    }
+
+
+
+
+    .circle-icon-wrapper {
+      position: relative;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-gray);
+      border-radius: 50%;
+    }
+    .circle-svg {
+      position: absolute;
+      top: 0; left: 0;
+      transform: rotate(-90deg);
+    }
+    .circle-bg { fill: none; stroke: var(--border); stroke-width: 3; }
+    .circle-progress { 
+      fill: none; 
+      stroke: var(--success); 
+      stroke-width: 3; 
+      stroke-dasharray: 126; 
+      stroke-dashoffset: 126;
+      transition: stroke-dashoffset 0.5s ease;
+    }
+    .circle-progress.over { stroke: var(--danger); }
+    .circle-icon-wrapper span { font-size: 20px; z-index: 1; }
+
+    .category-info .cat-name { font-weight: 600; font-size: 16px; margin-bottom: 2px; }
+    .category-info .cat-spent { font-size: 13px; color: var(--text-muted); }
+
+    .category-right { text-align: right; }
+    .status-text { font-weight: 600; font-size: 15px; }
+    .status-text.left { color: #000000; }
+    .status-text.over { color: var(--danger); }
+
+    /* Forms */
+    .log-expense-section {
+      background: var(--bg-gray);
+      padding: 16px;
+      border-radius: 12px;
+      margin-top: 24px;
+    }
+    label { font-weight: 600; display: block; margin: 10px 0 4px; font-size: 13px; }
+    select, input, textarea { width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 8px; box-sizing: border-box; font-size: 15px; background: white;}
+    
+    .input-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .warning-text {
+      color: var(--danger);
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 6px;
+      display: none;
+    }
+
+    button.submit-btn { width: 100%; background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 600; margin-top: 16px; cursor: pointer; }
+    button.submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .cancel-btn { width: 100%; background: transparent; color: var(--text-muted); border: 1px solid #cbd5e0; padding: 8px; border-radius: 8px; font-size: 13px; font-weight: 600; margin-top: 8px; cursor: pointer; display: none; }
+
+    /* Transactions */
+    .tx-section { margin-top: 24px; }
+    .tx-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .tx-left { display: flex; align-items: center; gap: 12px; }
+    .tx-icon { width: 38px; height: 38px; border-radius: 50%; background: var(--bg-gray); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+    .tx-details { display: flex; flex-direction: column; }
+    .tx-title { font-weight: 600; font-size: 14px; }
+    .tx-sub { font-size: 12px; color: var(--text-muted); }
+    .tx-right { display: flex; align-items: center; gap: 10px; }
+    .tx-price { font-weight: 700; font-size: 15px; color: var(--primary); text-align: right; }
+    .tx-actions { display: flex; gap: 4px; }
+    .action-btn { background: none; border: none; cursor: pointer; font-size: 14px; padding: 4px; border-radius: 4px; }
+    .action-btn:hover { background: var(--bg-gray); }
+
+    .view-all-btn {
+      display: block;
+      width: 100%;
+      text-align: center;
+      background: none;
+      border: 1px dashed #cbd5e0;
+      padding: 10px;
+      border-radius: 8px;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 13px;
+      margin-top: 12px;
+      cursor: pointer;
+    }
+
+    .user-badge { font-size: 11px; text-align: center; color: var(--text-muted); margin-top: auto; padding: 15px; }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #1a202c;
+      color: #ffffff;
+      padding: 12px 24px;
+      border-radius: 25px;
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      opacity: 0;
+      transition: all 0.3s ease;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+  </style>
 </head>
 <body>
 
-  <?!= include('Nav'); ?>
-
-  <div class="container">
-
-    <!-- VIEW 1: PAINEL GERAL (HOME) -->
-    <div id="view-home" class="view active">
-      <div class="card">
-        <div class="balance-label">Saldo Total das Contas</div>
-        <div class="balance-val" id="dash-total-balance">0,00 MT</div>
-        <div class="stats-grid">
-          <div class="stat-box income">
-            <div class="balance-label">Receitas (Mês Atual)</div>
-            <div class="val" id="dash-total-income">0,00 MT</div>
-          </div>
-          <div class="stat-box expense">
-            <div class="balance-label">Despesas (Mês Atual)</div>
-            <div class="val" id="dash-total-expense">0,00 MT</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>Resumo de Despesas</h3>
-        <canvas id="categoryChart" style="max-height: 220px; margin-top: 12px;"></canvas>
-      </div>
-    </div>
-
-    <!-- VIEW 2: TODAS AS TRANSAÇÕES (GLOBAL CRUD) -->
-    <div id="view-transactions" class="view">
-      <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h3>Histórico de Transações</h3>
-          <button class="btn-sm" onclick="switchTab('add-tx', 'Registar Transação')">+ Nova</button>
-        </div>
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Data / Despesa</th>
-                <th>Conta</th>
-                <th>Valor</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody id="global-tx-table-body"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- VIEW 3: EXTRATO BANCÁRIO -->
-    <div id="view-statement" class="view">
-        <div class="card">
-        <h3>Gerar Extrato de Conta</h3>
-        <form id="form-statement" onsubmit="fetchStatement(event)">
-          <div class="form-group">
-            <label>Conta</label>
-            <select id="stmt-account" class="form-control" required></select>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-            <div class="form-group">
-              <label>Data de Início</label>
-              <input type="date" id="stmt-start" class="form-control" required>
-            </div>
-            <div class="form-group">
-              <label>Data de Fim</label>
-              <input type="date" id="stmt-end" class="form-control" required>
-            </div>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-            <div class="form-group">
-              <label>Tipo</label>
-              <select id="stmt-type" class="form-control">
-                <option value="ALL">Todos</option>
-                <option value="Income">Receitas (Inflows)</option>
-                <option value="Expense">Despesas (Outflows)</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Categoria</label>
-              <select id="stmt-category" class="form-control">
-                <option value="ALL">Todas</option>
-                <!-- Dynamic options populated via populateCategoryDropdowns() -->
-              </select>
-            </div>
-          </div>
-
-          <button type="submit" class="btn">Gerar Extrato</button>
-        </form>
-      </div>
-
-      <div id="statement-results" class="card" style="display: none;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h3>Pré-Visualização do Período</h3>
-          <button type="button" class="btn-download" onclick="exportStatementToExcel()" title="Descarregar .xlsx">⬇</button>
-        </div>
-        <div class="statement-summary">
-          <div class="stmt-card"><span>Saldo Anterior</span><strong id="stmt-op-bal">0,00 MT</strong></div>
-          <div class="stmt-card"><span>Receitas</span><strong id="stmt-inc" style="color: var(--success);">0,00 MT</strong></div>
-          <div class="stmt-card"><span>Despesas</span><strong id="stmt-exp" style="color: var(--danger);">0,00 MT</strong></div>
-          <div class="stmt-card"><span>Saldo Final</span><strong id="stmt-cl-bal">0,00 MT</strong></div>
-        </div>
-
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Despesa / Descr.</th>
-                <th>Valor</th>
-              </tr>
-            </thead>
-            <tbody id="stmt-table-body"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- VIEW 4: CONTAS E DÍVIDAS -->
-    <div id="view-accounts" class="view">
-      <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <h3>Contas</h3>
-          <button class="btn-sm" onclick="openModal('modal-add-acc')">+ Nova Conta</button>
-        </div>
-        <div id="accounts-list" style="margin-top: 12px;"></div>
-      </div>
-
-      <!-- CARD 1: CATEGORIAS DE DESPESAS -->
-          <div class="card despesas">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <h3>Categorias de Despesas</h3>
-              <button class="btn-sm" onclick="openModal('modal-add-cat')">+ Nova Despesa</button>
-            </div>
-            <div id="expense-categories-list" style="margin-top: 12px;"></div>
-          </div>
-
-          <!-- CARD 2: CATEGORIAS DE RECEITAS -->
-          <div class="card receitas">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <h3>Categorias de Receitas</h3>
-              <button class="btn-sm" onclick="openModal('modal-add-cat')">+ Nova Receita</button>
-            </div>
-            <div id="income-categories-list" style="margin-top: 12px;"></div>
-          </div>
-
-
-      <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <h3>Dívidas & Empréstimos</h3>
-          <button class="btn-sm" onclick="openModal('modal-add-debt')">+ Registar Dívida</button>
-        </div>
-        <div id="debts-list" style="margin-top: 12px;"></div>
-      </div>
-    </div>
-
-    <!-- VIEW 5: REGISTAR TRANSAÇÃO -->
-    <div id="view-add-tx" class="view">
-      <div class="card">
-        <h3>Nova Transação</h3>
-        <form id="form-tx" onsubmit="submitTransaction(event)">
-          <div class="form-group">
-            <label>Tipo de Transação</label>
-            <div class="type-selector">
-              <button type="button" id="btn-type-expense" class="type-btn active-expense" onclick="selectTxType('Expense')">Despesa</button>
-              <button type="button" id="btn-type-income" class="type-btn" onclick="selectTxType('Income')">Receita</button>
-              <button type="button" id="btn-type-transfer" class="type-btn" onclick="selectTxType('Transfer')">Transferência</button>
-            </div>
-            <input type="hidden" id="tx-type" value="Expense">
-          </div>
-
-          <div class="form-group">
-            <label>Conta Origem</label>
-            <select id="tx-account" class="form-control" required></select>
-          </div>
-
-          <div class="form-group">
-            <label>Data</label>
-            <input type="date" id="tx-date" class="form-control" required>
-          </div>
-
-          <div class="form-group" id="target-acc-group" style="display: none;">
-            <label>Conta Destino</label>
-            <select id="tx-target-account" class="form-control"></select>
-          </div>
-
-          <div class="form-group" id="debt-toggle-group">
-            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 600; color: var(--text-main);">
-              <input type="checkbox" id="tx-is-debt" onchange="toggleDebtMode()" style="width: 18px; height: 18px; cursor: pointer;">
-              Pagamento de Dívida
-            </label>
-          </div>
-
-          <div class="form-group" id="debt-group" style="display: none;">
-            <label>Dívida / Empréstimo</label>
-            <select id="tx-debt" class="form-control"></select>
-          </div>
-
-          <div class="form-group" id="cat-group">
-            <label>Categoria</label>
-            <select id="tx-category" class="form-control"></select>
-          </div>
-
-          <div class="form-group">
-            <label>Valor (MT)</label>
-            <input type="number" step="0.01" id="tx-amount" class="form-control" placeholder="0.00" required>
-          </div>
-
-          <div class="form-group">
-            <label>Descrição</label>
-            <input type="text" id="tx-desc" class="form-control" placeholder="Ex: Pagamento de serviços">
-          </div>
-
-          <div class="form-group">
-            <label>Comprovativo (Foto)</label>
-            <input type="file" id="tx-receipt" accept="image/*" capture="environment" class="form-control">
-          </div>
-
-          <button type="submit" class="btn">Guardar Transação</button>
-        </form>
-      </div>
-    </div>
-
+<div class="app-container">
+  <!-- Navigation Top Tabs -->
+  <div class="tabs-nav">
+    <button class="tab-btn active" onclick="switchTab('budgets', event)">Budgets</button>
+    <button class="tab-btn" onclick="switchTab('transactions', event)">Transactions</button>
+    <button class="tab-btn" onclick="switchTab('insights', event)">Insights</button>
   </div>
 
-  <!-- MODALS PARA CRUD -->
-  <div id="modal-view-tx" class="modal">
-  <div class="modal-content">
-    <h3>Detalhes da Transação</h3>
-    <div id="view-tx-body" style="margin: 16px 0;">
+  <!-- BUDGETS TAB -->
+  <div id="budgets-tab" class="tab-content active">
+    <div class="overview-card">
+      <div class="overview-title">Left for cycle</div>
+      <div id="totalRemaining" class="overview-amount">R 0</div>
+      <div class="progress-bar-container">
+        <div id="totalProgressBar" class="progress-bar-fill"></div>
       </div>
-    <div style="display: flex; justify-content: flex-end; gap: 8px;">
-      <button type="button" class="btn btn-secondary" onclick="closeModal('modal-view-tx')">Fechar</button>
+      <div class="overview-meta">
+        <span id="totalSpent">R 0 already spent</span>
+        <span id="totalAllocated">R 0 set budget</span>
+      </div>
+    </div>
+
+    <div class="full-bleed" style="padding-top: 16px; padding-bottom: 8px;">
+     <div class="section-header">
+      <h3>Budget categories</h3>
+      <button type="button" onclick="openCategoryModal()" style="background: var(--bg-gray); border: 1px solid var(--border); padding: 6px 12px; border-radius: 12px; font-weight: 600; font-size: 13px; cursor: pointer;">+ Add</button>
+    </div>
+      
+      <div id="categoryContainer" class="category-list"></div>
+    </div>
+
+    <!-- Quick Log & Edit Form -->
+    <div class="log-expense-section">
+      <h4 id="formHeader" style="margin:0 0 10px 0;">Log Transaction</h4>
+      <form id="expenseForm" onsubmit="handleFormSubmit(event)">
+        <select id="category" required onchange="checkOverBudgetWarning()">
+          <option value="" disabled selected>Select category</option>
+        </select>
+        
+        <div class="input-group">
+          <select id="currency" style="width: 35%;" onchange="checkOverBudgetWarning()">
+            <option value="ZAR" selected>ZAR (R)</option>
+            <option value="BWP">BWP (P)</option>
+          </select>
+          <input type="number" id="price" step="0.01" min="0.01" required placeholder="Amount" style="width: 65%;" oninput="checkOverBudgetWarning()">
+        </div>
+
+        <div id="budgetWarning" class="warning-text">⚠️ Warning: This transaction exceeds your remaining balance for this category.</div>
+        <textarea id="reason" rows="2" placeholder="What was this spent on? (Optional)" style="margin-top:8px;"></textarea>
+        
+        <button type="submit" id="submitBtn" class="submit-btn">Log Expense</button>
+        <button type="button" id="cancelBtn" class="cancel-btn" onclick="resetForm()">Cancel Editing</button>
+      </form>
+    </div>
+
+    <!-- Recent 3 Activity Module -->
+    <div class="tx-section">
+      <div class="section-header">
+        <h3 style="font-size: 16px;">Recent Activity</h3>
+      </div>
+      <div id="recentTxContainer">
+        <p style="color:var(--text-muted); font-size:13px; text-align:center;">Loading recent logs...</p>
+      </div>
+      <button class="view-all-btn" onclick="switchTab('transactions', null)">View All Transactions →</button>
+    </div>
+  </div>
+
+  <!-- TRANSACTIONS TAB -->
+  <div id="transactions-tab" class="tab-content">
+    <div class="section-header">
+      <h3>All Transactions</h3>
+    </div>
+    <input type="text" id="txSearchInput" placeholder="Search by category or reason..." onkeyup="filterTransactions()" style="margin-bottom: 16px;">
+    <div id="allTxContainer">
+      <p style="color:var(--text-muted); font-size:13px; text-align:center;">Loading full transaction history...</p>
+    </div>
+  </div>
+
+  <!-- INSIGHTS TAB -->
+  <div id="insights-tab" class="tab-content">
+    <h3>Insights Analytics</h3>
+    <p style="color: var(--text-muted);">Spending analytics and metric history visualizer modules go here.</p>
+  </div>
+
+  <div id="userEmail" class="user-badge">Loading instance context...</div>
+</div>
+
+<!-- Custom Confirmation Modal -->
+<div id="confirmModal" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-icon">🗑️</div>
+    <h4 class="modal-title">Delete Transaction?</h4>
+    <p class="modal-text">Are you sure you want to delete this expense entry? This action cannot be undone.</p>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-cancel" onclick="closeDeleteModal()">Cancel</button>
+      <button id="confirmDeleteBtn" class="modal-btn modal-btn-danger">Delete</button>
     </div>
   </div>
 </div>
-  <!-- Modal Editar Transação -->
-  <div id="modal-edit-tx" class="modal">
-    <div class="modal-content">
-      <h3>Editar Transação</h3>
-      <form onsubmit="submitEditTransaction(event)">
-        <input type="hidden" id="edit-tx-id">
-        <div class="form-group">
-          <label>Valor (MT)</label>
-          <input type="number" step="0.01" id="edit-tx-amount" class="form-control" required>
-        </div>
-        <div class="form-group">
-          <label>Despesa / Categoria</label>
-          <select id="edit-tx-category" class="form-control"></select>
-        </div>
-        <div class="form-group">
-          <label>Descrição</label>
-          <input type="text" id="edit-tx-desc" class="form-control">
-        </div>
-        <div style="display: flex; gap: 8px;">
-          <button type="submit" class="btn">Atualizar</button>
-          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit-tx')">Cancelar</button>
-        </div>
-      </form>
-    </div>
+<!-- Custom Add Category Modal -->
+<div id="categoryModal" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-icon">➕</div>
+    <h4 class="modal-title">Add Budget Category</h4>
+    <form id="addCategoryForm" onsubmit="handleCategorySubmit(event)">
+      <input type="text" id="newCatName" placeholder="Category Name (e.g. Groceries)" required style="margin-bottom: 12px;">
+      <input type="number" id="newCatBudget" step="0.01" min="1" placeholder="Budget Amount (ZAR)" required style="margin-bottom: 20px;">
+      
+      <div class="modal-actions">
+        <button type="button" class="modal-btn modal-btn-cancel" onclick="closeCategoryModal()">Cancel</button>
+        <button type="submit" id="saveCatBtn" class="modal-btn" style="background: var(--primary); color: white;">Save Category</button>
+      </div>
+    </form>
   </div>
+</div>
+<!-- Floating Toast Popup -->
+<div id="toast" class="toast">
+  <span>✓</span> <span id="toastMsg">Expense logged successfully!</span>
+</div>
 
-  <!-- Modal Adicionar Conta -->
-  <div id="modal-add-acc" class="modal">
-    <div class="modal-content">
-      <h3>Adicionar Nova Conta</h3>
-      <form onsubmit="submitAddAccount(event)">
-        <div class="form-group">
-          <label>Nome da Conta</label>
-          <input type="text" id="new-acc-name" class="form-control" required placeholder="Ex: Banco Millennium">
-        </div>
-        <div class="form-group">
-          <label>Tipo</label>
-          <select id="new-acc-type" class="form-control">
-            <option value="Bank">Conta Bancária</option>
-            <option value="Card">Cartão de Crédito</option>
-            <option value="Cash">Carteira / Dinheiro</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Saldo Inicial (MT)</label>
-          <input type="number" step="0.01" id="new-acc-init" class="form-control" value="0.00" required>
-        </div>
-        <div style="display: flex; gap: 8px;">
-          <button type="submit" class="btn">Guardar</button>
-          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-acc')">Cancelar</button>
-        </div>
-      </form>
-    </div>
-  </div>
+<script>
+  let userBudgets = {};
+  let recentTransactions = [];
+  let exchangeRates = { "ZAR": 1.0, "BWP": 1.15 };
+  let editingRowIndex = null;
+  
+  const emojiMap = { 
+    'food': '🍲', 
+    'cleaning supplies': '🧹', 
+    'petrol': '⛽', 
+    'equipment': '🛠️', 
+    'airtime': '📱', 
+    'thank you': '🙏', 
+    'emergency': '🚨',
+    'traveling': '🚗',
+    'driver': '🚘'
+  };
 
-  <!-- Modal Adicionar Despesa (Categoria) -->
-  <div id="modal-add-cat" class="modal">
-    <div class="modal-content">
-      <h3>Adicionar Tipo de Despesa</h3>
-      <form onsubmit="submitAddCategory(event)">
-        <div class="form-group">
-          <label>Nome da Despesa</label>
-          <input type="text" id="new-cat-name" class="form-control" required placeholder="Ex: Combustível">
-        </div>
-        <div class="form-group">
-          <label>Tipo</label>
-          <select id="new-cat-type" class="form-control">
-            <option value="Expense">Despesa</option>
-            <option value="Income">Receita</option>
-          </select>
-        </div>
-        <div style="display: flex; gap: 8px;">
-          <button type="submit" class="btn">Guardar</button>
-          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-cat')">Cancelar</button>
-        </div>
-      </form>
-    </div>
-  </div>
+  function switchTab(tabName, event) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    
+    if (event && event.currentTarget) {
+      event.currentTarget.classList.add('active');
+    } else {
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        if(btn.innerText.toLowerCase().includes(tabName.toLowerCase())) btn.classList.add('active');
+      });
+    }
+    
+    document.getElementById(`${tabName}-tab`).classList.add('active');
+  }
 
-  <!-- Modal Adicionar Dívida -->
-  <div id="modal-add-debt" class="modal">
-    <div class="modal-content">
-      <h3>Registar Dívida / Empréstimo</h3>
-      <form onsubmit="submitAddDebt(event)">
-        <div class="form-group">
-          <label>Nome da Pessoa</label>
-          <input type="text" id="new-debt-person" class="form-control" required placeholder="Ex: Carlos">
-        </div>
-        <div class="form-group">
-          <label>Tipo</label>
-          <select id="new-debt-type" class="form-control">
-            <option value="Lend">Emprestado (Quem me deve)</option>
-            <option value="Borrow">Dívida (A quem devo)</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Valor Total (MT)</label>
-          <input type="number" step="0.01" id="new-debt-amount" class="form-control" required>
-        </div>
-        <div class="form-group">
-          <label>Data de Vencimento</label>
-          <input type="date" id="new-debt-date" class="form-control">
-        </div>
-        <div style="display: flex; gap: 8px;">
-          <button type="submit" class="btn">Guardar</button>
-          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-debt')">Cancelar</button>
-        </div>
-      </form>
-    </div>
-  </div>
+  window.onload = function() {
+    loadUserData();
+  };
 
-  <!-- FAB Button -->
-  <button class="fab" onclick="switchTab('add-tx', 'Registar Transação')">+</button>
+  function loadUserData() {
+    google.script.run.withSuccessHandler(function(data) {
+      document.getElementById('userEmail').innerText = "Logged in as: " + data.email;
+      userBudgets = data.budgets;
+      recentTransactions = data.transactions || [];
+      exchangeRates = data.rates || { "ZAR": 1.0, "BWP": 1.15 };
+      
+      renderDashboard(data.budgets);
+      renderRecentTransactions(recentTransactions.slice(0, 3));
+      renderAllTransactions(recentTransactions);
+    }).getUserBudgetData();
+  }
 
-  <?!= include('Scripts'); ?>
+  function renderDashboard(budgets) {
+    let container = document.getElementById('categoryContainer');
+    let dropdown = document.getElementById('category');
+    
+    let selectedCat = dropdown.value;
+    container.innerHTML = "";
+    dropdown.innerHTML = '<option value="" disabled selected>Select category</option>';
+    
+    let globalAllocated = 0, globalRemaining = 0, globalSpent = 0;
+
+    for (let cat in budgets) {
+      let allocated = parseFloat(budgets[cat].allocated || 0);
+      let remaining = parseFloat(budgets[cat].remaining || 0);
+      let spent = parseFloat(budgets[cat].spent || (allocated - remaining) || 0);
+
+      globalAllocated += allocated;
+      globalRemaining += remaining;
+      globalSpent += spent;
+
+      let opt = document.createElement('option');
+      opt.value = cat; opt.innerText = cat;
+      if (cat === selectedCat) opt.selected = true;
+      dropdown.appendChild(opt);
+
+      let ratio = allocated > 0 ? (spent / allocated) : 0;
+      let strokeOffset = 126 - (Math.min(ratio, 1) * 126);
+      let isOver = remaining < 0;
+      let normalizedStatusText = isOver ? `R${Math.abs(remaining).toFixed(0)} over` : `R${remaining.toFixed(0)} left`;
+      
+      let cleanKey = cat.toLowerCase().trim();
+      let emoji = emojiMap[cleanKey] || '💰';
+
+      let rowHtml = `
+        <div class="category-row">
+          <div class="category-left">
+            <div class="circle-icon-wrapper">
+              <svg class="circle-svg" width="48" height="48">
+                <circle class="circle-bg" cx="24" cy="24" r="20"></circle>
+                <circle class="circle-progress ${isOver ? 'over' : ''}" cx="24" cy="24" r="20" style="stroke-dashoffset: ${strokeOffset};"></circle>
+              </svg>
+              <span>${emoji}</span>
+            </div>
+            <div class="category-info">
+              <div class="cat-name">${cat}</div>
+              <div class="cat-spent">R${spent.toFixed(0)} <span style="color:#a0aec0">of R${allocated.toFixed(0)}</span></div>
+            </div>
+          </div>
+          <div class="category-right">
+            <span class="status-text ${isOver ? 'over' : 'left'}">${normalizedStatusText}</span>
+          </div>
+        </div>
+      `;
+      container.insertAdjacentHTML('beforeend', rowHtml);
+    }
+
+    document.getElementById('totalRemaining').innerText = "R " + globalRemaining.toFixed(2);
+    document.getElementById('totalSpent').innerText = `R ${globalSpent.toFixed(0)} already spent`;
+    document.getElementById('totalAllocated').innerText = `R ${globalAllocated.toFixed(0)} set budget`;
+    
+    let totalRatio = globalAllocated > 0 ? (globalSpent / globalAllocated) * 100 : 0;
+    let progressBar = document.getElementById('totalProgressBar');
+    progressBar.style.width = `${Math.min(totalRatio, 100)}%`;
+    progressBar.style.backgroundColor = globalRemaining < 0 ? 'var(--danger)' : 'var(--success)';
+  }
+
+  function openCategoryModal() {
+    document.getElementById('addCategoryForm').reset();
+    document.getElementById('categoryModal').classList.add('active');
+  }
+
+  function closeCategoryModal() {
+    document.getElementById('categoryModal').classList.remove('active');
+  }
+
+  function handleCategorySubmit(event) {
+    event.preventDefault();
+    let name = document.getElementById('newCatName').value;
+    let budget = document.getElementById('newCatBudget').value;
+    let btn = document.getElementById('saveCatBtn');
+
+    btn.innerText = "Adding...";
+    btn.disabled = true;
+
+    google.script.run.withSuccessHandler(function() {
+      closeCategoryModal();
+      btn.innerText = "Save Category";
+      btn.disabled = false;
+      showToast("Category added successfully!");
+      loadUserData(); // Reloads categories & update dropdowns
+    }).addCategory(name, budget);
+  }
+  
+  function renderRecentTransactions(txList) {
+    let container = document.getElementById('recentTxContainer');
+    if (!txList || txList.length === 0) {
+      container.innerHTML = '<p style="color:var(--text-muted); font-size:13px; text-align:center;">No recent transactions logged yet.</p>';
+      return;
+    }
+    container.innerHTML = txList.map(tx => createTxRowHtml(tx)).join('');
+  }
+
+  function renderAllTransactions(txList) {
+    let container = document.getElementById('allTxContainer');
+    if (!txList || txList.length === 0) {
+      container.innerHTML = '<p style="color:var(--text-muted); font-size:13px; text-align:center;">No transactions logged yet.</p>';
+      return;
+    }
+    container.innerHTML = txList.map(tx => createTxRowHtml(tx)).join('');
+  }
+
+  function createTxRowHtml(tx) {
+    let cleanKey = (tx.category || '').toLowerCase().trim();
+    let emoji = emojiMap[cleanKey] || '💰';
+    let currSymbol = tx.currency === 'BWP' ? 'P' : 'R';
+
+    return `
+      <div class="tx-item" data-search="${cleanKey} ${(tx.reason || '').toLowerCase()}">
+        <div class="tx-left">
+          <div class="tx-icon">${emoji}</div>
+          <div class="tx-details">
+            <span class="tx-title">${tx.category}</span>
+            <span class="tx-sub">${tx.date} ${tx.reason ? '• ' + tx.reason : ''} (${tx.currency || 'ZAR'})</span>
+          </div>
+        </div>
+        <div class="tx-right">
+          <div class="tx-price">- ${currSymbol}${parseFloat(tx.price).toFixed(2)}</div>
+          <div class="tx-actions">
+            <button class="action-btn" title="Edit" onclick="editTx(${tx.rowIndex}, '${tx.category}', ${tx.price}, '${escapeQuotes(tx.reason)}', '${tx.currency || 'ZAR'}')">✏️</button>
+            <button class="action-btn" title="Delete" onclick="confirmDeleteTx(${tx.rowIndex})">🗑️</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function escapeQuotes(str) {
+    return (str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  }
+
+  function filterTransactions() {
+    let query = document.getElementById('txSearchInput').value.toLowerCase();
+    document.querySelectorAll('#allTxContainer .tx-item').forEach(item => {
+      let searchData = item.getAttribute('data-search');
+      item.style.display = searchData.includes(query) ? 'flex' : 'none';
+    });
+  }
+
+  function checkOverBudgetWarning() {
+    let category = document.getElementById('category').value;
+    let priceInput = parseFloat(document.getElementById('price').value) || 0;
+    let currency = document.getElementById('currency').value;
+    let warningEl = document.getElementById('budgetWarning');
+
+    let rate = exchangeRates[currency] || 1.0;
+    let priceInZar = priceInput * rate;
+
+    if (category && userBudgets[category]) {
+      let remaining = userBudgets[category].remaining;
+      if (priceInZar > remaining) {
+        warningEl.style.display = 'block';
+        return;
+      }
+    }
+    warningEl.style.display = 'none';
+  }
+
+  function editTx(rowIndex, category, price, reason, currency) {
+    editingRowIndex = rowIndex;
+    document.getElementById('category').value = category;
+    document.getElementById('price').value = price;
+    document.getElementById('reason').value = reason;
+    document.getElementById('currency').value = currency || 'ZAR';
+
+    document.getElementById('formHeader').innerText = "Edit Transaction";
+    document.getElementById('submitBtn').innerText = "Update Expense";
+    document.getElementById('cancelBtn').style.display = "block";
+
+    switchTab('budgets', null);
+    document.getElementById('expenseForm').scrollIntoView({ behavior: 'smooth' });
+    checkOverBudgetWarning();
+  }
+
+  
+
+  function confirmDeleteTx(rowIndex) {
+    pendingDeleteRowIndex = rowIndex;
+    let modal = document.getElementById('confirmModal');
+    let confirmBtn = document.getElementById('confirmDeleteBtn');
+
+    // Attach click listener dynamically for target row
+    confirmBtn.onclick = function() {
+      executeDeleteTx();
+    };
+
+    modal.classList.add('active');
+  }
+
+  function closeDeleteModal() {
+    let modal = document.getElementById('confirmModal');
+    modal.classList.remove('active');
+    pendingDeleteRowIndex = null;
+  }
+
+  function executeDeleteTx() {
+    if (!pendingDeleteRowIndex) return;
+    
+    let confirmBtn = document.getElementById('confirmDeleteBtn');
+    confirmBtn.innerText = "Deleting...";
+    confirmBtn.disabled = true;
+
+    google.script.run.withSuccessHandler(function() {
+      closeDeleteModal();
+      confirmBtn.innerText = "Delete";
+      confirmBtn.disabled = false;
+      showToast("Expense deleted successfully!");
+      loadUserData();
+    }).deleteExpense(pendingDeleteRowIndex);
+  }
+
+  function handleFormSubmit(event) {
+    event.preventDefault();
+    let category = document.getElementById('category').value;
+    let price = parseFloat(document.getElementById('price').value);
+    let reason = document.getElementById('reason').value || "";
+    let currency = document.getElementById('currency').value;
+    let submitBtn = document.getElementById('submitBtn');
+
+    submitBtn.disabled = true;
+
+    if (editingRowIndex) {
+      submitBtn.innerText = "Updating...";
+      google.script.run.withSuccessHandler(function() {
+        showToast("Expense updated successfully!");
+        resetForm();
+        loadUserData();
+      }).updateExpense(editingRowIndex, category, price, reason, currency);
+    } else {
+      submitBtn.innerText = "Logging...";
+      google.script.run.withSuccessHandler(function() {
+        showToast("Expense logged successfully!");
+        resetForm();
+        loadUserData();
+      }).logExpense(category, price, reason, currency);
+    }
+  }
+
+  function resetForm() {
+    editingRowIndex = null;
+    document.getElementById('expenseForm').reset();
+    document.getElementById('formHeader').innerText = "Log Transaction";
+    document.getElementById('budgetWarning').style.display = 'none';
+    
+    let submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = false;
+    submitBtn.innerText = "Log Expense";
+    
+    document.getElementById('cancelBtn').style.display = "none";
+  }
+
+  function showToast(message) {
+    let toast = document.getElementById('toast');
+    document.getElementById('toastMsg').innerText = message;
+    toast.classList.add('show');
+    setTimeout(() => {
+      toast.classList.remove('show');
+    }, 3000);
+  }
+</script>
 </body>
 </html>
