@@ -20,8 +20,9 @@ function getSpreadsheet() {
   return id ? SpreadsheetApp.openById(id) : SpreadsheetApp.getActiveSpreadsheet();
 }
 
-function generateId(prefix) {
-  return (prefix || 'ID') + '_' + Utilities.getUuid().substring(0, 8);
+// Helper utility to manually set Spreadsheet ID
+function setSpreadsheetId(id) {
+  PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', id);
 }
 
 // GET: Fetch budgets, exchange rates, and user transactions
