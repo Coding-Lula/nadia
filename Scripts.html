@@ -4,33 +4,93 @@
   let globalDebts = [];
   let globalTransactions = [];
   let chartInstance = null;
+
+  // Breakdown state
+  let currentBreakdownType = 'Expense'; // 'Expense' or 'Income'
+  let currentBreakdownData = { labels: [], values: [], total: 0, items: [] };
+  let showAllBreakdownCategories = false;
+
+  // Balance visibility state
+  let rawTotalBalance = 0;
+  let isBalanceHidden = false;
+
+  const sagePalette = [
+    '#183e2b', // Deep forest green
+    '#2d5a3f', // Forest green
+    '#3e7b57', // Medium moss green
+    '#68a37f', // Soft sage green
+    '#9bc4ab', // Light sage
+    '#b8d8c4', // Pale sage
+    '#d6e9dc', // Softest tint
+    '#5c7161', // Olive muted
+    '#25a168', // Bright accent
+    '#102d1e'  // Extra dark
+  ];
+
   window.onload = function() {
     loadInitialData();
   };
 
   function switchTab(tabId, title) {
-    // Hide all views
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    // Un-highlight all nav tabs
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-    document.getElementById('tx-date').value = new Date().toISOString().split('T')[0];
-    // Activate target view
+
+    const dateInput = document.getElementById('tx-date');
+    if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+
     const targetView = document.getElementById(`view-${tabId}`);
     if (targetView) targetView.classList.add('active');
 
-    // Highlight target nav tab
     const targetNav = document.getElementById(`nav-${tabId}`);
     if (targetNav) targetNav.classList.add('active');
 
-    document.getElementById('page-title').innerText = title;
+    const pageTitle = document.getElementById('page-title');
+    if (pageTitle) pageTitle.innerText = title;
 
     if (tabId === 'transactions') {
       loadGlobalTransactions();
     }
   }
 
-  function openModal(id) { document.getElementById(id).classList.add('active'); }
-  function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+  function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('active');
+  }
+
+  function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('active');
+  }
+
+  function openAddCatModal(type) {
+    const typeSelect = document.getElementById('new-cat-type');
+    if (typeSelect) typeSelect.value = type;
+    openModal('modal-add-cat');
+  }
+
+  /* Eye Toggle for Balance Privacy */
+  function toggleBalanceVisibility() {
+    isBalanceHidden = !isBalanceHidden;
+    renderBalanceDisplay();
+    const btn = document.getElementById('eye-toggle-btn');
+    if (btn) {
+      btn.innerText = isBalanceHidden ? '🙈' : '👁️';
+    }
+  }
+
+  function renderBalanceDisplay() {
+    const el = document.getElementById('dash-total-balance');
+    if (!el) return;
+
+    if (isBalanceHidden) {
+      el.innerHTML = `•••••• <span class="balance-cents">MT</span>`;
+    } else {
+      const parts = rawTotalBalance.toFixed(2).split('.');
+      const whole = Number(parts[0]).toLocaleString('pt-PT');
+      const cents = parts[1];
+      el.innerHTML = `${whole}<span class="balance-cents">,${cents} MT</span>`;
+    }
+  }
 
   function selectTxType(type) {
     document.getElementById('tx-type').value = type;
@@ -106,22 +166,32 @@
     });
   }
 
+  /* Load Initial App Data */
   function loadInitialData() {
     // 1. Accounts
     google.script.run.withSuccessHandler(data => {
       globalAccounts = data.accounts;
-      document.getElementById('dash-total-balance').innerText = `${data.totalBalance.toFixed(2)} MT`;
+      rawTotalBalance = Number(data.totalBalance) || 0;
+      renderBalanceDisplay();
       populateAccountDropdowns();
       renderAccountsList(data.accounts);
     }).getAccountsOverview();
 
-    // 2. Current Month Totals
+    // 2. Current Month Totals & Trend
     google.script.run.withSuccessHandler(summary => {
       document.getElementById('dash-total-income').innerText = `${summary.monthlyIncome.toFixed(2)} MT`;
       document.getElementById('dash-total-expense').innerText = `${summary.monthlyExpense.toFixed(2)} MT`;
+
+      const trendEl = document.getElementById('dash-trend-pct');
+      if (trendEl && summary.vsLastMonth !== undefined) {
+        const pct = summary.vsLastMonth;
+        const isUp = pct >= 0;
+        trendEl.className = isUp ? 'trend-pct' : 'trend-pct negative';
+        trendEl.innerHTML = `${isUp ? '▲' : '▼'} ${Math.abs(pct).toFixed(1)}%`;
+      }
     }).getCurrentMonthSummary();
 
-    // 3. Despesas (Categories)
+    // 3. Categories
     google.script.run.withSuccessHandler(cats => {
       globalCategories = cats;
       populateCategoryDropdowns();
@@ -135,107 +205,271 @@
       populateDebtDropdown();
     }).getDebts();
 
-    // 5. Summary Category
-    google.script.run.withSuccessHandler(chartData => {
-      renderCategoryChart(chartData);
-    }).getCategoryExpenseBreakdown();
+    // 5. Category Breakdown (default: Expense)
+    loadBreakdown(currentBreakdownType);
   }
 
+  /* Breakdown Switcher (Expense / Income) */
+  function switchBreakdownType(type) {
+    currentBreakdownType = type;
+    const btnExp = document.getElementById('btn-chart-expense');
+    const btnInc = document.getElementById('btn-chart-income');
+    const titleEl = document.getElementById('breakdown-card-title');
+    const centerLbl = document.getElementById('chart-center-lbl');
+
+    if (type === 'Expense') {
+      btnExp.classList.add('active');
+      btnInc.classList.remove('active');
+      if (titleEl) titleEl.innerText = 'Análise de Gastos';
+      if (centerLbl) centerLbl.innerText = 'Total Gasto';
+    } else {
+      btnInc.classList.add('active');
+      btnExp.classList.remove('active');
+      if (titleEl) titleEl.innerText = 'Análise de Receitas';
+      if (centerLbl) centerLbl.innerText = 'Total Recebido';
+    }
+
+    showAllBreakdownCategories = false;
+    loadBreakdown(type);
+  }
+
+  function loadBreakdown(type) {
+    google.script.run.withSuccessHandler(breakdown => {
+      currentBreakdownData = breakdown || { labels: [], values: [], total: 0, items: [] };
+      renderBreakdown(currentBreakdownData);
+    }).getCategoryBreakdown(type);
+  }
+
+  function renderBreakdown(breakdown) {
+    const centerVal = document.getElementById('chart-center-val');
+    if (centerVal) {
+      centerVal.innerText = `${(breakdown.total || 0).toFixed(2)} MT`;
+    }
+
+    renderDonutChart(breakdown);
+    renderCategoryBreakdownList(breakdown.items || []);
+  }
+
+  function renderDonutChart(data) {
+    const canvas = document.getElementById('categoryChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (chartInstance) {
+      chartInstance.destroy();
+    }
+
+    if (!data || !data.values || data.values.length === 0 || data.total === 0) {
+      chartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Sem dados'],
+          datasets: [{
+            data: [1],
+            backgroundColor: ['#e4ebe6'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          cutout: '76%',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { enabled: false }
+          }
+        }
+      });
+      return;
+    }
+
+    // Colors matching reference pill segmented shades of green
+    const colors = data.labels.map((_, i) => sagePalette[i % sagePalette.length]);
+
+    chartInstance = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: data.labels,
+        datasets: [{
+          data: data.values,
+          backgroundColor: colors,
+          borderWidth: 5,
+          borderColor: '#ffffff',
+          borderRadius: 20, // Rounded pill-shaped doughnut segments
+          spacing: 2
+        }]
+      },
+      options: {
+        cutout: '74%',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const val = context.raw || 0;
+                const total = data.total || 1;
+                const pct = ((val / total) * 100).toFixed(1);
+                return ` ${context.label}: ${val.toFixed(2)} MT (${pct}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  function renderCategoryBreakdownList(items) {
+    const container = document.getElementById('category-breakdown-list');
+    const verTodosBtn = document.getElementById('btn-ver-todos-cats');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (!items || items.length === 0) {
+      container.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 10px 0;">Nenhuma categoria registada neste mês.</div>';
+      if (verTodosBtn) verTodosBtn.style.display = 'none';
+      return;
+    }
+
+    const hasMoreThan5 = items.length > 5;
+    const itemsToDisplay = showAllBreakdownCategories ? items : items.slice(0, 5);
+
+    itemsToDisplay.forEach((item, index) => {
+      const color = sagePalette[index % sagePalette.length];
+      const div = document.createElement('div');
+      div.className = 'category-item';
+      div.innerHTML = `
+        <div class="category-item-left">
+          <span class="category-dot" style="background-color: ${color};"></span>
+          <span class="category-name-text" title="${item.category}">${item.category}</span>
+        </div>
+        <span class="category-pct-text">${Math.round(item.percentage)}%</span>
+      `;
+      container.appendChild(div);
+    });
+
+    if (verTodosBtn) {
+      if (hasMoreThan5) {
+        verTodosBtn.style.display = 'block';
+        verTodosBtn.innerText = showAllBreakdownCategories ? 'Ver menos' : `Ver todos (${items.length})`;
+      } else {
+        verTodosBtn.style.display = 'none';
+      }
+    }
+  }
+
+  function toggleAllCategories() {
+    showAllBreakdownCategories = !showAllBreakdownCategories;
+    renderCategoryBreakdownList(currentBreakdownData.items || []);
+  }
+
+  /* Transactions Tab */
   function loadGlobalTransactions() {
     google.script.run.withSuccessHandler(transactions => {
-      globalTransactions = transactions;
-      renderGlobalTransactions(transactions);
+      globalTransactions = transactions || [];
+      renderGlobalTransactions(globalTransactions);
     }).getRecentTransactions();
   }
 
-function renderGlobalTransactions(transactions) {
-  const tbody = document.getElementById('global-tx-table-body');
-  if (!tbody) return;
-  tbody.innerHTML = '';
+  function renderGlobalTransactions(transactions) {
+    const tbody = document.getElementById('global-tx-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
 
-  if (!transactions || transactions.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--text-muted);">Nenhuma transação encontrada.</td></tr>';
-    return;
+    if (!transactions || transactions.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--text-muted); padding: 20px;">Nenhuma transação encontrada.</td></tr>';
+      return;
+    }
+
+    transactions.forEach(tx => {
+      const tr = document.createElement('tr');
+      const isIncome = tx.type === 'Income' || tx.amount > 0;
+      const displayAmt = Math.abs(tx.amount).toFixed(2);
+      const sign = isIncome ? '+' : '-';
+
+      tr.setAttribute('data-search', `${(tx.category || '').toLowerCase()} ${(tx.description || '').toLowerCase()} ${(tx.accountName || '').toLowerCase()}`);
+      tr.innerHTML = `
+        <td>
+          <strong>${tx.category || 'Transferência'}</strong><br>
+          <small style="color: var(--text-muted);">${tx.date}</small>
+        </td>
+        <td>
+          <div style="font-weight: 500;">${tx.description || '-'}</div>
+          <span class="badge-account">💳 ${tx.accountName || '-'}</span>
+        </td>
+        <td class="${isIncome ? 'amt-credit' : 'amt-debit'}">${sign} ${displayAmt} MT</td>
+        <td style="text-align: center; white-space: nowrap;">
+          <button class="btn-sm" style="padding: 4px 6px; margin-right: 3px;" onclick="openViewTxModal('${tx.id}')">👁️</button>
+          <button class="btn-sm" style="padding: 4px 6px; margin-right: 3px;" onclick="openEditTxModal('${tx.id}')">✏️</button>
+          <button class="btn-danger-sm" onclick="deleteTransaction('${tx.id}')">🗑️</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
   }
 
-  transactions.forEach(tx => {
-    const tr = document.createElement('tr');
-    const isCredit = tx.amount > 0;
-    
-    tr.innerHTML = `
-      <td>
-        <strong>${tx.category || 'Transferência'}</strong><br>
-        <small style="color: var(--text-muted);">${tx.date}</small>
-      </td>
-      <td>
-        <div style="font-weight: 500;">${tx.description || '-'}</div>
-        <small style="color: var(--text-muted);">💳 ${tx.accountName || '-'}</small>
-      </td>
-      <td class="${isCredit ? 'amt-credit' : 'amt-debit'}">${tx.amount.toFixed(2)} MT</td>
-      <td>
-        <button class="btn-sm" style="padding: 2px 6px; margin-right: 4px;" onclick="openViewTxModal('${tx.id}')">👁️</button>
-        <button class="btn-sm" style="padding: 2px 6px; margin-right: 4px;" onclick="openEditTxModal('${tx.id}')">✏️</button>
-        <button class="btn-danger-sm" onclick="deleteTransaction('${tx.id}')">🗑️</button>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
+  function filterGlobalTransactions() {
+    const query = (document.getElementById('tx-search-input').value || '').toLowerCase().trim();
+    document.querySelectorAll('#global-tx-table-body tr').forEach(row => {
+      const data = row.getAttribute('data-search');
+      if (data) {
+        row.style.display = data.includes(query) ? '' : 'none';
+      }
+    });
+  }
 
   function populateAccountDropdowns() {
-  // Populate normal transaction dropdowns (must be a specific account)
-  const txSelects = [document.getElementById('tx-account'), document.getElementById('tx-target-account')];
-  txSelects.forEach(select => {
-    if (!select) return;
-    select.innerHTML = '';
-    globalAccounts.forEach(acc => {
-      const opt = document.createElement('option');
-      opt.value = acc.id;
-      opt.innerText = `${acc.name} (${acc.balance.toFixed(2)} MT)`;
-      select.appendChild(opt);
+    const txSelects = [document.getElementById('tx-account'), document.getElementById('tx-target-account')];
+    txSelects.forEach(select => {
+      if (!select) return;
+      select.innerHTML = '';
+      globalAccounts.forEach(acc => {
+        const opt = document.createElement('option');
+        opt.value = acc.id;
+        opt.innerText = `${acc.name} (${acc.balance.toFixed(2)} MT)`;
+        select.appendChild(opt);
+      });
     });
-  });
 
-  // Populate Extrato Account Filter with "ALL" option
-  const stmtAccSelect = document.getElementById('stmt-account');
-  if (stmtAccSelect) {
-    stmtAccSelect.innerHTML = '<option value="ALL">Todas as Contas</option>';
-    globalAccounts.forEach(acc => {
-      const opt = document.createElement('option');
-      opt.value = acc.id;
-      opt.innerText = `${acc.name} (${acc.balance.toFixed(2)} MT)`;
-      stmtAccSelect.appendChild(opt);
-    });
+    const stmtAccSelect = document.getElementById('stmt-account');
+    if (stmtAccSelect) {
+      stmtAccSelect.innerHTML = '<option value="ALL">Todas as Contas</option>';
+      globalAccounts.forEach(acc => {
+        const opt = document.createElement('option');
+        opt.value = acc.id;
+        opt.innerText = `${acc.name} (${acc.balance.toFixed(2)} MT)`;
+        stmtAccSelect.appendChild(opt);
+      });
+    }
   }
-}
 
- function populateCategoryDropdowns() {
-  const selects = [document.getElementById('tx-category'), document.getElementById('edit-tx-category')];
-  
-  // Populate normal transaction forms
-  selects.forEach(select => {
-    if (!select) return;
-    select.innerHTML = '';
-    globalCategories.forEach(cat => {
-      const opt = document.createElement('option');
-      opt.value = cat.name;
-      opt.innerText = cat.name;
-      select.appendChild(opt);
-    });
-  });
+  function populateCategoryDropdowns() {
+    const selects = [document.getElementById('tx-category'), document.getElementById('edit-tx-category')];
 
-  // Populate Extrato Category Filter with "ALL" option
-  const stmtCatSelect = document.getElementById('stmt-category');
-  if (stmtCatSelect) {
-    stmtCatSelect.innerHTML = '<option value="ALL">Todas as Categorias</option>';
-    globalCategories.forEach(cat => {
-      const opt = document.createElement('option');
-      opt.value = cat.name;
-      opt.innerText = cat.name;
-      stmtCatSelect.appendChild(opt);
+    selects.forEach(select => {
+      if (!select) return;
+      select.innerHTML = '';
+      globalCategories.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat.name;
+        opt.innerText = cat.name;
+        select.appendChild(opt);
+      });
     });
+
+    const stmtCatSelect = document.getElementById('stmt-category');
+    if (stmtCatSelect) {
+      stmtCatSelect.innerHTML = '<option value="ALL">Todas as Categorias</option>';
+      globalCategories.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat.name;
+        opt.innerText = cat.name;
+        stmtCatSelect.appendChild(opt);
+      });
+    }
   }
-}
 
   function submitTransaction(e) {
     e.preventDefault();
@@ -260,12 +494,12 @@ function renderGlobalTransactions(transactions) {
     }
 
     google.script.run.withSuccessHandler(() => {
-      alert('Transação guardada com sucesso!');
+      closeModal('modal-add-tx');
       document.getElementById('form-tx').reset();
       document.getElementById('tx-is-debt').checked = false;
       toggleDebtMode();
-      switchTab('transactions', 'Todas as Transações');
       loadInitialData();
+      loadGlobalTransactions();
     }).addTransaction(payload);
   }
 
@@ -306,92 +540,91 @@ function renderGlobalTransactions(transactions) {
     }
   }
 
+  /* Extrato Logic */
   let currentStatementData = null;
 
   function fetchStatement(e) {
-  e.preventDefault();
-  const accId = document.getElementById('stmt-account').value;
-  const start = document.getElementById('stmt-start').value;
-  const end = document.getElementById('stmt-end').value;
-  const type = document.getElementById('stmt-type').value;
-  const category = document.getElementById('stmt-category').value;
+    e.preventDefault();
+    const accId = document.getElementById('stmt-account').value;
+    const start = document.getElementById('stmt-start').value;
+    const end = document.getElementById('stmt-end').value;
+    const type = document.getElementById('stmt-type').value;
+    const category = document.getElementById('stmt-category').value;
 
-  google.script.run.withSuccessHandler(data => {
-    currentStatementData = data;
-    document.getElementById('stmt-op-bal').innerText = `${data.openingBalance.toFixed(2)} MT`;
-    document.getElementById('stmt-inc').innerText = `${data.totalIncome.toFixed(2)} MT`;
-    document.getElementById('stmt-exp').innerText = `${data.totalExpense.toFixed(2)} MT`;
-    document.getElementById('stmt-cl-bal').innerText = `${data.closingBalance.toFixed(2)} MT`;
+    google.script.run.withSuccessHandler(data => {
+      currentStatementData = data;
+      document.getElementById('stmt-op-bal').innerText = `${data.openingBalance.toFixed(2)} MT`;
+      document.getElementById('stmt-inc').innerText = `${data.totalIncome.toFixed(2)} MT`;
+      document.getElementById('stmt-exp').innerText = `${data.totalExpense.toFixed(2)} MT`;
+      document.getElementById('stmt-cl-bal').innerText = `${data.closingBalance.toFixed(2)} MT`;
 
-    const tbody = document.getElementById('stmt-table-body');
-    tbody.innerHTML = '';
+      const tbody = document.getElementById('stmt-table-body');
+      tbody.innerHTML = '';
+
+      data.transactions.forEach(tx => {
+        const tr = document.createElement('tr');
+        const isCredit = tx.amount > 0;
+        tr.innerHTML = `
+          <td>${tx.date}</td>
+          <td>
+            <strong>${tx.category}</strong>
+            <br><small style="color: var(--text-muted);">${tx.description || '-'}</small>
+            <br><span class="badge-account">${tx.accountName}</span>
+          </td>
+          <td class="${isCredit ? 'amt-credit' : 'amt-debit'}">${tx.amount.toFixed(2)} MT</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('statement-results').style.display = 'block';
+    }).getStatementData(accId, start, end, type, category);
+  }
+
+  function exportStatementToExcel() {
+    if (!currentStatementData) {
+      alert('Nenhum dado de extrato para exportar.');
+      return;
+    }
+
+    const startDateInput = document.getElementById('stmt-start').value;
+    let mmdd = '';
+    if (startDateInput) {
+      const parts = startDateInput.split('-');
+      if (parts.length === 3) {
+        mmdd = `${parts[1]}-${parts[2]}`;
+      }
+    }
+    const filename = mmdd ? `extrato ${mmdd}.xlsx` : 'extrato.xlsx';
+
+    const data = currentStatementData;
+    const rows = [
+      ['Resumo do Período'],
+      ['Saldo Anterior', `${data.openingBalance.toFixed(2)} MT`],
+      ['Receitas', `${data.totalIncome.toFixed(2)} MT`],
+      ['Despesas', `${data.totalExpense.toFixed(2)} MT`],
+      ['Saldo Final', `${data.closingBalance.toFixed(2)} MT`],
+      [],
+      ['Transações'],
+      ['Data', 'Categoria', 'Descrição', 'Conta', 'Valor (MT)']
+    ];
 
     data.transactions.forEach(tx => {
-      const tr = document.createElement('tr');
-      const isCredit = tx.amount > 0;
-      tr.innerHTML = `
-        <td>${tx.date}</td>
-        <td>
-          <strong>${tx.category}</strong>
-          <br><small style="color: var(--text-muted);">${tx.description || '-'}</small>
-          <br><span class="badge-account">${tx.accountName}</span>
-        </td>
-        <td class="${isCredit ? 'amt-credit' : 'amt-debit'}">${tx.amount.toFixed(2)} MT</td>
-      `;
-      tbody.appendChild(tr);
+      rows.push([
+        tx.date,
+        tx.category || '',
+        tx.description || '',
+        tx.accountName || '',
+        tx.amount
+      ]);
     });
 
-    document.getElementById('statement-results').style.display = 'block';
-  }).getStatementData(accId, start, end, type, category);
-}
-
-function exportStatementToExcel() {
-  if (!currentStatementData) {
-    alert('Nenhum dado de extrato para exportar.');
-    return;
+    const worksheet = XLSX.utils.aoa_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Extrato');
+    XLSX.writeFile(workbook, filename);
   }
 
-  const startDateInput = document.getElementById('stmt-start').value;
-  let mmdd = '';
-  if (startDateInput) {
-    const parts = startDateInput.split('-');
-    if (parts.length === 3) {
-      mmdd = `${parts[1]}-${parts[2]}`;
-    }
-  }
-  const filename = mmdd ? `extrato ${mmdd}.xlsx` : 'extrato.xlsx';
-
-  const data = currentStatementData;
-
-  const rows = [
-    ['Resumo do Período'],
-    ['Saldo Anterior', `${data.openingBalance.toFixed(2)} MT`],
-    ['Receitas', `${data.totalIncome.toFixed(2)} MT`],
-    ['Despesas', `${data.totalExpense.toFixed(2)} MT`],
-    ['Saldo Final', `${data.closingBalance.toFixed(2)} MT`],
-    [],
-    ['Transações'],
-    ['Data', 'Categoria', 'Descrição', 'Conta', 'Valor (MT)']
-  ];
-
-  data.transactions.forEach(tx => {
-    rows.push([
-      tx.date,
-      tx.category || '',
-      tx.description || '',
-      tx.accountName || '',
-      tx.amount
-    ]);
-  });
-
-  const worksheet = XLSX.utils.aoa_to_sheet(rows);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Extrato');
-
-  XLSX.writeFile(workbook, filename);
-}
-
-  /* OTHER CRUD HANDLERS */
+  /* Accounts, Categories, Debts CRUD */
   function submitAddAccount(e) {
     e.preventDefault();
     const name = document.getElementById('new-acc-name').value;
@@ -429,58 +662,60 @@ function exportStatementToExcel() {
   }
 
   function deleteCategory(id) {
-    if(confirm('Tem a certeza que deseja eliminar esta despesa?')) {
+    if(confirm('Tem a certeza que deseja eliminar esta categoria?')) {
       google.script.run.withSuccessHandler(() => loadInitialData()).deleteCategory(id);
     }
   }
 
   function renderAccountsList(accounts) {
     const container = document.getElementById('accounts-list');
+    if (!container) return;
     container.innerHTML = '';
     accounts.forEach(acc => {
       container.innerHTML += `
-        <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border);">
+        <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border);">
           <div><strong>${acc.name}</strong><br><small style="color: var(--text-muted);">${acc.type}</small></div>
-          <div style="font-weight: 700;">${acc.balance.toFixed(2)} MT</div>
+          <div style="font-weight: 700; color: var(--text-main);">${acc.balance.toFixed(2)} MT</div>
         </div>
       `;
     });
   }
 
-    function renderCategoriesList(categories) {
-      const expenseContainer = document.getElementById('expense-categories-list');
-      const incomeContainer = document.getElementById('income-categories-list');
-      
-      if (expenseContainer) expenseContainer.innerHTML = '';
-      if (incomeContainer) incomeContainer.innerHTML = '';
+  function renderCategoriesList(categories) {
+    const expenseContainer = document.getElementById('expense-categories-list');
+    const incomeContainer = document.getElementById('income-categories-list');
 
-      categories.forEach(cat => {
-        const html = `
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border);">
-            <span><strong>${cat.name}</strong></span>
-            <button class="btn-danger-sm" onclick="deleteCategory('${cat.id}')">Eliminar</button>
-          </div>
-        `;
+    if (expenseContainer) expenseContainer.innerHTML = '';
+    if (incomeContainer) incomeContainer.innerHTML = '';
 
-        if (cat.type === 'Income' && incomeContainer) {
-          incomeContainer.innerHTML += html;
-        } else if (cat.type === 'Expense' && expenseContainer) {
-          expenseContainer.innerHTML += html;
-        }
-      });
-    }
+    categories.forEach(cat => {
+      const html = `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border);">
+          <span><strong>${cat.name}</strong></span>
+          <button class="btn-danger-sm" onclick="deleteCategory('${cat.id}')">Eliminar</button>
+        </div>
+      `;
+
+      if (cat.type === 'Income' && incomeContainer) {
+        incomeContainer.innerHTML += html;
+      } else if (cat.type === 'Expense' && expenseContainer) {
+        expenseContainer.innerHTML += html;
+      }
+    });
+  }
 
   function renderDebtsList(debts) {
     const container = document.getElementById('debts-list');
+    if (!container) return;
     container.innerHTML = '';
-    if(debts.length === 0) {
+    if (debts.length === 0) {
       container.innerHTML = '<small style="color: var(--text-muted);">Nenhuma dívida registada.</small>';
       return;
     }
     debts.forEach(d => {
       const remaining = d.totalAmount - d.paidAmount;
       container.innerHTML += `
-        <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border);">
+        <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border);">
           <div><strong>${d.person}</strong> (${d.type === 'Lend' ? 'Emprestado' : 'Dívida'})<br><small>Vencimento: ${d.dueDate}</small></div>
           <div style="font-weight: 700; color: ${d.type === 'Lend' ? 'var(--success)' : 'var(--danger)'};">${remaining.toFixed(2)} MT</div>
         </div>
@@ -488,85 +723,40 @@ function exportStatementToExcel() {
     });
   }
 
-function renderCategoryChart(data) {
-  const canvas = document.getElementById('categoryChart');
-  if (!canvas) return; // Guard clause in case canvas doesn't exist yet
+  function openViewTxModal(txId) {
+    const tx = globalTransactions.find(t => t.id === txId);
+    if (!tx) return;
 
-  const ctx = canvas.getContext('2d');
+    const container = document.getElementById('view-tx-body');
+    const isCredit = tx.type === 'Income' || tx.amount > 0;
 
-  if (chartInstance) {
-    chartInstance.destroy();
-  }
-
-  // Handle empty or missing dataset
-  if (!data || !data.labels || data.labels.length === 0) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.font = '14px sans-serif';
-    ctx.fillStyle = '#888888';
-    ctx.textAlign = 'center';
-    ctx.fillText('Sem despesas registadas este mês.', canvas.width / 2, canvas.height / 2);
-    return;
-  }
-
-  chartInstance = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels: data.labels,
-      datasets: [{
-        data: data.values,
-        backgroundColor: [
-          '#f05252', '#3b82f6', '#10b981', '#f59e0b', 
-          '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'
-        ],
-        borderWidth: 1
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: 'bottom',
-          labels: { boxWidth: 12, font: { size: 11 } }
-        }
-      }
-    }
-  });
-}
-function openViewTxModal(txId) {
-  const tx = globalTransactions.find(t => t.id === txId);
-  if (!tx) return;
-
-  const container = document.getElementById('view-tx-body');
-  const isCredit = tx.amount > 0;
-
-  container.innerHTML = `
-    <div style="display: flex; flex-direction: column; gap: 10px;">
-      <div>
-        <small style="color: var(--text-muted);">Data</small>
-        <div style="font-weight: 600;">${tx.date}</div>
-      </div>
-      <div>
-        <small style="color: var(--text-muted);">Tipo / Categoria</small>
-        <div style="font-weight: 600;">${tx.type || 'Transação'} — ${tx.category || 'Geral'}</div>
-      </div>
-      <div>
-        <small style="color: var(--text-muted);">Conta Utilizada</small>
-        <div style="font-weight: 600;">💳 ${tx.accountName || 'N/A'}</div>
-      </div>
-      <div>
-        <small style="color: var(--text-muted);">Valor</small>
-        <div style="font-weight: 700; font-size: 1.2rem;" class="${isCredit ? 'amt-credit' : 'amt-debit'}">
-          ${tx.amount.toFixed(2)} MT
+    container.innerHTML = `
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div>
+          <small style="color: var(--text-muted); font-size: 0.75rem;">Data</small>
+          <div style="font-weight: 600;">${tx.date}</div>
+        </div>
+        <div>
+          <small style="color: var(--text-muted); font-size: 0.75rem;">Tipo / Categoria</small>
+          <div style="font-weight: 600;">${tx.type || 'Transação'} — ${tx.category || 'Geral'}</div>
+        </div>
+        <div>
+          <small style="color: var(--text-muted); font-size: 0.75rem;">Conta Utilizada</small>
+          <div style="font-weight: 600;">💳 ${tx.accountName || 'N/A'}</div>
+        </div>
+        <div>
+          <small style="color: var(--text-muted); font-size: 0.75rem;">Valor</small>
+          <div style="font-weight: 800; font-size: 1.3rem;" class="${isCredit ? 'amt-credit' : 'amt-debit'}">
+            ${isCredit ? '+' : '-'} ${Math.abs(tx.amount).toFixed(2)} MT
+          </div>
+        </div>
+        <div>
+          <small style="color: var(--text-muted); font-size: 0.75rem;">Descrição</small>
+          <div style="font-weight: 500;">${tx.description || 'Sem descrição'}</div>
         </div>
       </div>
-      <div>
-        <small style="color: var(--text-muted);">Descrição</small>
-        <div style="font-weight: 500;">${tx.description || 'Sem descrição'}</div>
-      </div>
-    </div>
-  `;
+    `;
 
-  openModal('modal-view-tx');
-}
+    openModal('modal-view-tx');
+  }
 </script>
